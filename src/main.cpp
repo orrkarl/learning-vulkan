@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -46,17 +47,12 @@ private:
 	const std::string m_errorMessage;
 };
 
-class VkExtensionNotFoundError : public std::exception
+class VkExtensionNotFoundError : public std::runtime_error
 {
 public:
 	VkExtensionNotFoundError(const char* extensionName)
-		: std::exception(), m_extensionName(extensionName), m_errorMessage(std::string("Validation layer not found: ") + extensionName)
+		: std::runtime_error(std::string("Validation layer not found: ") + extensionName), m_extensionName(extensionName)
 	{
-	}
-
-	const char* what() const noexcept override
-	{
-		return m_errorMessage.c_str();
 	}
 
 	const char* extensions() const
@@ -66,7 +62,6 @@ public:
 
 private:
 	const char* m_extensionName;
-	const std::string m_errorMessage;
 };
 
 struct QueueFamilyIndices {
@@ -109,6 +104,23 @@ const std::vector<const char*> VALIDATION_LAYERS =
 const std::vector<const char*> DEVICE_EXTENSIONS = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
+
+std::vector<char> readFile(const std::string& path)
+{
+	std::ifstream file(path, std::ios::ate | std::ios::binary);
+	if (!file.is_open())
+	{
+		throw std::runtime_error(std::string("could not open shader file: ") + path);
+	}
+
+	auto fileSize = file.tellg();
+	std::vector<char> buffer(fileSize);
+	file.seekg(0);
+	file.read(buffer.data(), fileSize);
+	file.close();
+
+	return buffer;
+}
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -603,6 +615,50 @@ private:
 		}
 	}
 
+	VkShaderModule createShaderModule(const std::vector<char>& code) 
+	{
+		VkShaderModuleCreateInfo shaderInfo = { };
+		shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		shaderInfo.codeSize = code.size();
+		shaderInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+		VkShaderModule ret;
+		auto status = vkCreateShaderModule(m_device, &shaderInfo, nullptr, &ret);
+		if (status != VK_SUCCESS)
+		{
+			throw VkError("could not create shader module", status);
+		}
+
+		return ret;
+	}
+
+	void createGraphicsPipeline()
+	{
+		auto vertShaderCode = readFile("vert.spv");
+		auto fragShaderCode = readFile("frag.spv");
+
+		auto fragShader = createShaderModule(fragShaderCode);
+		auto vertShader = createShaderModule(vertShaderCode);
+
+		VkPipelineShaderStageCreateInfo vertInfo = { };
+		vertInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertInfo.module = vertShader;
+		vertInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo fragInfo = {};
+		fragInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragInfo.module = fragShader;
+		fragInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
+
+
+		vkDestroyShaderModule(m_device, vertShader, nullptr);
+		vkDestroyShaderModule(m_device, fragShader, nullptr);
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -616,6 +672,7 @@ private:
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
+		createGraphicsPipeline();
 	}
 
 	void mainLoop()
