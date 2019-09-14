@@ -574,6 +574,35 @@ private:
 		vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
 	}
 
+	void createImageViews()
+	{
+		VkImageViewCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = m_swapChainImageFormat;
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+		
+		VkResult status;
+		m_swapChainImageViews.resize(m_swapChainImages.size());
+		for (size_t i = 0; i < m_swapChainImageViews.size(); i++) 
+		{
+			createInfo.image = m_swapChainImages[i];
+			status = vkCreateImageView(m_device, &createInfo, nullptr, &m_swapChainImageViews[i]);
+			if (status != VK_SUCCESS)
+			{
+				throw VkError("could not create image view", status);
+			}
+		}
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -586,6 +615,7 @@ private:
 		pickPhysicalDevice();
 		createLogicalDevice();
 		createSwapChain();
+		createImageViews();
 	}
 
 	void mainLoop()
@@ -599,6 +629,11 @@ private:
 
 	void cleanup()
 	{
+		for (auto view : m_swapChainImageViews)
+		{
+			vkDestroyImageView(m_device, view, nullptr);
+		}
+
 		vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 		vkDestroyDevice(m_device, nullptr);
 
@@ -624,6 +659,7 @@ private:
 	VkExtent2D m_swapChainExtent;
 	VkFormat m_swapChainImageFormat;
 	std::vector<VkImage> m_swapChainImages;
+	std::vector<VkImageView> m_swapChainImageViews;
 	GLFWwindow* m_window = nullptr;
 };
 
