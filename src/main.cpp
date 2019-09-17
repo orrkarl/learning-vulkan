@@ -844,6 +844,40 @@ private:
 		{
 		    throw VkError("failed to allocate command buffers!", status);
 		}
+
+		for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
+		{
+			VkCommandBufferBeginInfo commandBufferBegin = { };
+			commandBufferBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			
+			status = vkBeginCommandBuffer(m_commandBuffers[i], &commandBufferBegin);
+			
+			if (status != VK_SUCCESS)
+			{
+				throw VkError("could not begin command buffer", status);
+			}
+
+			VkRenderPassBeginInfo renderPassBegin = { };
+			renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			renderPassBegin.framebuffer = m_frameBuffers[i];
+			renderPassBegin.renderPass = m_renderPass;
+			renderPassBegin.renderArea.offset = { 0, 0 };
+			renderPassBegin.renderArea.extent = m_swapChainExtent;
+			VkClearValue clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+			renderPassBegin.clearValueCount = 1;
+			renderPassBegin.pClearValues = &clearColor;
+
+			vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+			vkCmdDraw(m_commandBuffers[i], 3, 1, 0, 0);
+			vkCmdEndRenderPass(m_commandBuffers[i]);
+
+			status = vkEndCommandBuffer(m_commandBuffers[i]);
+			if (status != VK_SUCCESS)
+			{
+				throw VkError("could not end command buffer recording", status);
+			}
+		}
 	}
 
 	void initVulkan()
