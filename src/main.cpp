@@ -814,6 +814,38 @@ private:
 		}
 	}
 
+	void createCommandPool()
+	{
+		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface);
+
+		VkCommandPoolCreateInfo commandPoolInfo = { };
+		commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		
+		auto status = vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_commandPool);
+		if (status != VK_SUCCESS)
+		{
+			throw VkError("could not create command pool", status);
+		}
+	}
+
+	void createCommandBuffers()
+	{
+		m_commandBuffers.resize(m_swapChainImageViews.size());
+
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = m_commandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = static_cast<uint32_t>(m_commandBuffers.size());
+
+		auto status = vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data());
+		if (status != VK_SUCCESS) 
+		{
+		    throw VkError("failed to allocate command buffers!", status);
+		}
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -830,6 +862,8 @@ private:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
+		createCommandPool();
+		createCommandBuffers();
 	}
 
 	void mainLoop()
@@ -843,6 +877,7 @@ private:
 
 	void cleanup()
 	{
+		vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 		for (auto framebuffer : m_frameBuffers) 
 		{
         	vkDestroyFramebuffer(m_device, framebuffer, nullptr);
@@ -871,6 +906,8 @@ private:
 		glfwTerminate();
 	}
 
+	std::vector<VkCommandBuffer> m_commandBuffers;
+	VkCommandPool m_commandPool;
 	VkDebugUtilsMessengerEXT m_debugMessenger;
 	VkDevice m_device;
 	std::vector<VkFramebuffer> m_frameBuffers;
