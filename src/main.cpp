@@ -652,12 +652,23 @@ private:
 		subpassDesc.colorAttachmentCount = 1;
 		subpassDesc.pColorAttachments = &colorRef;
 
+		VkSubpassDependency dependency = { };
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		
+
 		VkRenderPassCreateInfo renderPassInfo = { };
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = 1;
 		renderPassInfo.pAttachments = &color;
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpassDesc;
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &dependency;
 
 		auto status = vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass);
 		if (status != VK_SUCCESS)
@@ -871,12 +882,31 @@ private:
 			vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 			vkCmdDraw(m_commandBuffers[i], 3, 1, 0, 0);
 			vkCmdEndRenderPass(m_commandBuffers[i]);
-
+			
+			
 			status = vkEndCommandBuffer(m_commandBuffers[i]);
 			if (status != VK_SUCCESS)
 			{
 				throw VkError("could not end command buffer recording", status);
 			}
+		}
+	}
+
+	void createSemaphores()
+	{
+		VkSemaphoreCreateInfo info = { };
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		auto status = vkCreateSemaphore(m_device, &info, nullptr, &m_imageAvailable);
+		if (status != VK_SUCCESS)
+		{
+			throw VkError("could not create image-available semaphore", status);
+		}
+		
+		status = vkCreateSemaphore(m_device, &info, nullptr, &m_renderCompleted);
+		if (status != VK_SUCCESS)
+		{
+			throw VkError("could not create render-completed semaphore", status);
 		}
 	}
 
@@ -898,19 +928,57 @@ private:
 		createFramebuffers();
 		createCommandPool();
 		createCommandBuffers();
+		createSemaphores();
+	}
+
+	void drawFrame()
+	{
+		uint32_t imageIndex;
+		vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_imageAvailable, VK_NULL_HANDLE, &imageIndex);
+
+		VkSubmitInfo submitInfo = { };
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &m_imageAvailable;
+		VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		submitInfo.pWaitDstStageMask = &waitStage;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &m_renderCompleted;
+
+		auto status = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+		if (status != VK_SUCCESS)
+		{
+			throw VkError("could not submit queue", status);
+		}
+
+		VkPresentInfoKHR presentInfo = { };
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &m_renderCompleted;
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &m_swapChain;
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = nullptr;
+
+		status = vkQueuePresentKHR(m_presentQueue, &presentInfo);
 	}
 
 	void mainLoop()
 	{
 		while(!glfwWindowShouldClose(m_window))
 		{
-			
+			drawFrame();	
 			glfwPollEvents();
 		}
 	}
 
 	void cleanup()
 	{
+		vkDestroySemaphore(m_device, m_renderCompleted, nullptr);
+		vkDestroySemaphore(m_device, m_imageAvailable, nullptr);
+
 		vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 		for (auto framebuffer : m_frameBuffers) 
 		{
@@ -946,12 +1014,14 @@ private:
 	VkDevice m_device;
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkQueue m_graphicsQueue;
+	VkSemaphore m_imageAvailable;
 	VkInstance m_instance;
 	VkPipeline m_pipeline;
 	VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 	VkPipelineLayout m_pipelineLayout;
 	VkQueue m_presentQueue;
 	VkRenderPass m_renderPass;
+	VkSemaphore m_renderCompleted;
 	VkSurfaceKHR m_renderSurface;
 	VkSwapchainKHR m_swapChain;
 	VkExtent2D m_swapChainExtent;
