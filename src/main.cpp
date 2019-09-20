@@ -959,6 +959,8 @@ private:
 		presentInfo.pResults = nullptr;
 
 		status = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+		vkQueueWaitIdle(m_graphicsQueue);
+		vkQueueWaitIdle(m_presentQueue);
 	}
 
 	void mainLoop()
