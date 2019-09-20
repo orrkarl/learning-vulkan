@@ -948,10 +948,6 @@ private:
 		submitInfo.pSignalSemaphores = &m_renderCompleted;
 
 		auto status = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not submit queue", status);
-		}
 
 		VkPresentInfoKHR presentInfo = { };
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
