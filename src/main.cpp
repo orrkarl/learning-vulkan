@@ -874,7 +874,7 @@ private:
 			renderPassBegin.renderPass = m_renderPass;
 			renderPassBegin.renderArea.offset = { 0, 0 };
 			renderPassBegin.renderArea.extent = m_swapChainExtent;
-			VkClearValue clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+			VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 			renderPassBegin.clearValueCount = 1;
 			renderPassBegin.pClearValues = &clearColor;
 
