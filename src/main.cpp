@@ -326,18 +326,6 @@ T clamp(const T &min, const T &value, const T &max)
 	return std::max(min, std::min(value, max));
 }
 
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
-{
-	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-	{
-		return capabilities.currentExtent;
-	}
-
-	return {
-		clamp(capabilities.minImageExtent.width, WIDTH, capabilities.maxImageExtent.width),
-		clamp(capabilities.minImageExtent.height, HEIGHT, capabilities.maxImageExtent.height)};
-}
-
 class HelloTriangleApp
 {
 public:
@@ -350,16 +338,40 @@ public:
 	}
 
 private:
+	static void glfwFramebufferResize(GLFWwindow* window, int w, int h)
+	{
+		auto app = reinterpret_cast<HelloTriangleApp*>(glfwGetWindowUserPointer(window));
+		app->m_windowSizeChanged = true;
+	}
+
 	void initWindow()
 	{
 		glfwInit();
 		glfwSetErrorCallback(&onGLFWError);
 
-		glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 		m_window = glfwCreateWindow(WIDTH, HEIGHT, NAME, nullptr, nullptr);
+		glfwSetWindowUserPointer(m_window, this);
 		glfwSetKeyCallback(m_window, &onKeyPress);
+		glfwSetFramebufferSizeCallback(m_window, &glfwFramebufferResize);
+	}
+
+
+	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
+	{
+		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+		{
+			return capabilities.currentExtent;
+		}
+
+		int w, h;
+		glfwGetFramebufferSize(m_window, &w, &h);
+
+		return {
+			clamp(capabilities.minImageExtent.width, static_cast<uint32_t>(w), capabilities.maxImageExtent.width),
+			clamp(capabilities.minImageExtent.height, static_cast<uint32_t>(h), capabilities.maxImageExtent.height)
+		};
 	}
 
 	std::vector<const char *> getRequiredExtensions()
@@ -937,6 +949,48 @@ private:
 		}
 	}
 
+	void cleanupSwapchain()
+	{
+		for (auto framebuffer : m_frameBuffers)
+		{
+			vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+		}
+
+		vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_swapChainImages.size()), m_commandBuffers.data());
+
+		vkDestroyPipeline(m_device, m_pipeline, nullptr);
+		vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+		vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+
+		for (auto view : m_swapChainImageViews)
+		{
+			vkDestroyImageView(m_device, view, nullptr);
+		}
+
+		vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+	}
+
+	void recreateSwapchain()
+	{
+		int w = 0, h = 0;
+		while (w == 0 && h == 0)
+		{
+			glfwGetFramebufferSize(m_window, &w, &h);
+			glfwWaitEvents();
+		}
+
+		vkDeviceWaitIdle(m_device);
+
+		cleanupSwapchain();
+
+		createSwapChain();
+		createImageViews();
+		createRenderPass();
+		createGraphicsPipeline();
+		createFramebuffers();
+		createCommandBuffers();
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -961,13 +1015,21 @@ private:
 	void drawFrame()
 	{
 		vkWaitForFences(m_device, 1, &m_inFlightImages[m_currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
-		vkResetFences(m_device, 1, &m_inFlightImages[m_currentFrame]);
 
 		VkSemaphore *waitSemaphore = &m_imageAvailable[m_currentFrame];
 		VkSemaphore *signalSemaphore = &m_renderCompleted[m_currentFrame];
 
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+		auto status = vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+		if (status == VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			recreateSwapchain();
+			return;
+		}
+		else if (status != VK_SUCCESS && status != VK_SUBOPTIMAL_KHR)
+		{
+			throw VkError("could not acquire next image", status);
+		}
 
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -980,7 +1042,8 @@ private:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphore;
 
-		auto status = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightImages[m_currentFrame]);
+		vkResetFences(m_device, 1, &m_inFlightImages[m_currentFrame]);
+		status = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightImages[m_currentFrame]);
 		if (status != VK_SUCCESS)
 		{
 			throw VkError("could not submit queue", status);
@@ -996,7 +1059,14 @@ private:
 		presentInfo.pResults = nullptr;
 
 		status = vkQueuePresentKHR(m_presentQueue, &presentInfo);
-		vkQueueWaitIdle(m_graphicsQueue);
+		if (status == VK_ERROR_OUT_OF_DATE_KHR || status == VK_SUBOPTIMAL_KHR)
+		{
+			recreateSwapchain();
+		}
+		else if (status != VK_SUCCESS)
+		{
+			throw VkError("could present queue", status);
+		}
 
 		m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
@@ -1008,9 +1078,12 @@ private:
 			drawFrame();
 			glfwPollEvents();
 		}
+
+		vkQueueWaitIdle(m_graphicsQueue);
+		vkQueueWaitIdle(m_presentQueue);
 	}
 
-	void cleanup()
+	void cleanupSyncObjects()
 	{
 		for (auto fence : m_inFlightImages)
 		{
@@ -1024,29 +1097,23 @@ private:
 		{
 			vkDestroySemaphore(m_device, semaphore, nullptr);
 		}
+	}
 
+	void cleanup()
+	{
+		cleanupSwapchain();
+
+		cleanupSyncObjects();
+		
 		vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-		for (auto framebuffer : m_frameBuffers)
-		{
-			vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-		}
 
-		vkDestroyPipeline(m_device, m_pipeline, nullptr);
-		vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-		vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-
-		for (auto view : m_swapChainImageViews)
-		{
-			vkDestroyImageView(m_device, view, nullptr);
-		}
-
-		vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 		vkDestroyDevice(m_device, nullptr);
 
 		if (ENABLE_VALIDATION_LAYERS)
 		{
 			DestroyDebugUtilsMessengerEXT(m_instance, nullptr, m_debugMessenger);
 		}
+
 		vkDestroySurfaceKHR(m_instance, m_renderSurface, nullptr);
 		vkDestroyInstance(m_instance, nullptr);
 
@@ -1054,29 +1121,30 @@ private:
 		glfwTerminate();
 	}
 
-	std::vector<VkCommandBuffer> m_commandBuffers;
-	VkCommandPool m_commandPool;
-	int m_currentFrame;
-	VkDebugUtilsMessengerEXT m_debugMessenger;
-	VkDevice m_device;
-	std::vector<VkFramebuffer> m_frameBuffers;
-	VkQueue m_graphicsQueue;
-	std::vector<VkSemaphore> m_imageAvailable;
-	std::vector<VkFence> m_inFlightImages;
-	VkInstance m_instance;
-	VkPipeline m_pipeline;
-	VkPhysicalDevice m_physicalDevice;
-	VkPipelineLayout m_pipelineLayout;
-	VkQueue m_presentQueue;
-	VkRenderPass m_renderPass;
-	std::vector<VkSemaphore> m_renderCompleted;
-	VkSurfaceKHR m_renderSurface;
-	VkSwapchainKHR m_swapChain;
-	VkExtent2D m_swapChainExtent;
-	VkFormat m_swapChainImageFormat;
-	std::vector<VkImage> m_swapChainImages;
-	std::vector<VkImageView> m_swapChainImageViews;
-	GLFWwindow *m_window;
+	std::vector<VkCommandBuffer> 	m_commandBuffers;
+	VkCommandPool 					m_commandPool;
+	int 							m_currentFrame;
+	VkDebugUtilsMessengerEXT 		m_debugMessenger;
+	VkDevice 						m_device;
+	std::vector<VkFramebuffer> 		m_frameBuffers;
+	VkQueue 						m_graphicsQueue;
+	std::vector<VkSemaphore> 		m_imageAvailable;
+	std::vector<VkFence> 			m_inFlightImages;
+	VkInstance 						m_instance;
+	VkPipeline 						m_pipeline;
+	VkPhysicalDevice 				m_physicalDevice;
+	VkPipelineLayout 				m_pipelineLayout;
+	VkQueue 	 					m_presentQueue;
+	VkRenderPass 					m_renderPass;
+	std::vector<VkSemaphore>		m_renderCompleted;
+	VkSurfaceKHR 					m_renderSurface;
+	VkSwapchainKHR  				m_swapChain;
+	VkExtent2D 						m_swapChainExtent;
+	VkFormat   						m_swapChainImageFormat;
+	std::vector<VkImage> 			m_swapChainImages;
+	std::vector<VkImageView> 		m_swapChainImageViews;
+	GLFWwindow*						m_window;
+	bool							m_windowSizeChanged;
 };
 
 int main()
