@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(learning-vulkan VERSION 1.0.0 LANGUAGES CXX)
+project(NBody VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE "Debug")
@@ -14,7 +14,15 @@ find_package(Vulkan REQUIRED)
 
 include(cmake/glslc.cmake)
 
-add_executable(triangle src/main.cpp)
+add_executable(triangle 
+    src/main.cpp 
+    
+    src/util/BoundedBuffer.cpp
+    src/util/callbacks.cpp
+    src/util/general.cpp
+    src/util/query.cpp
+    src/util/QueueFamilyIndices.cpp
+)
 target_link_libraries(triangle glfw Vulkan::Vulkan)
 target_include_directories(triangle PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
 
