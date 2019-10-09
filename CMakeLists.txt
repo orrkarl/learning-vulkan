@@ -20,6 +20,7 @@ add_executable(triangle
     src/util/BoundedBuffer.cpp
     src/util/callbacks.cpp
     src/util/general.cpp
+    src/util/MVPTransform.cpp
     src/util/query.cpp
     src/util/QueueFamilyIndices.cpp
 )
