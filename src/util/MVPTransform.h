@@ -2,15 +2,6 @@
 
 #include <glm/glm.hpp>
 
-struct MVPTransform
-{
-public:
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 projection;
+using MVPTransform = glm::mat4;
 
-    glm::mat4 transform() const
-    {
-        return projection * view * model;
-    }
-};
+MVPTransform mkTransform(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection);

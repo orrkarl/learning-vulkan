@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -14,7 +15,9 @@
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "config.h"
 #include "util/util.h"
@@ -395,6 +398,23 @@ private:
 		m_renderPass = m_device->createRenderPassUnique(renderPassInfo);
 	}
 
+	void createDescriptorSetLayout()
+	{
+		vk::DescriptorSetLayoutBinding mvpLayoutBinding(
+			0, 
+			vk::DescriptorType::eUniformBuffer, 
+			1, 
+			vk::ShaderStageFlagBits::eVertex
+		);
+
+		m_descriptorSetLayout = m_device->createDescriptorSetLayoutUnique(
+			vk::DescriptorSetLayoutCreateInfo(
+				vk::DescriptorSetLayoutCreateFlags(), 
+				1, &mvpLayoutBinding
+			)
+		);
+	}
+
 	void createGraphicsPipeline()
 	{
 		auto vertShaderCode = readFile("vert.spv");
@@ -478,6 +498,8 @@ private:
 		colorBlending.setPAttachments(&colorBlendAttachment);
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo;
+		pipelineLayoutInfo.setSetLayoutCount(1);
+		pipelineLayoutInfo.setPSetLayouts(&m_descriptorSetLayout.get());
 
 		m_pipelineLayout = m_device->createPipelineLayoutUnique(pipelineLayoutInfo);
 
@@ -599,6 +621,7 @@ private:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
+		createUniformBuffers();
 		createCommandBuffers();
 	}
 
@@ -658,10 +681,25 @@ private:
 		return ret;
 	}
 
-	void createVertexBuffer()
+	void createVertexBuffers()
 	{
 		m_deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
 		m_deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+	}
+
+	void createUniformBuffers()
+	{
+		m_uniforms.resize(m_swapChainImages.size());
+
+		auto bufferSize = sizeof(MVPTransform);
+		for (auto i = 0; i < m_uniforms.size(); ++i)
+		{
+			m_uniforms[i] = BoundedBuffer(
+				m_physicalDevice, *m_device, 
+				bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, 
+				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+			);
+		}
 	}
 
 	void initVulkan()
@@ -677,12 +715,33 @@ private:
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
-		createVertexBuffer();
+		createVertexBuffers();
+		createUniformBuffers();
 		createCommandBuffers();
 		createSyncObjects();
+	}
+
+	void updateUniformBuffer(const BoundedBuffer& deviceUniform)
+	{
+		static const auto initTime = std::chrono::high_resolution_clock::now();
+
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - initTime).count();
+
+		auto model = glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		auto view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		auto proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+		proj[1][1] *= -1;
+
+		auto transform = mkTransform(model, view, proj);
+
+		void* data = m_device->mapMemory(deviceUniform.memory(), 0, sizeof(MVPTransform));
+		memcpy(data, &transform, sizeof(transform));
+		m_device->unmapMemory(deviceUniform.memory());
 	}
 
 	void drawFrame()
@@ -709,7 +768,9 @@ private:
 
 		m_device->resetFences(1, &m_inFlightImages[m_currentFrame].get());
 
-		m_graphicsQueue.submit(vk::ArrayProxy(submitInfo), m_inFlightImages[m_currentFrame].get());
+		updateUniformBuffer(m_uniforms[imageIndex]);
+
+		m_graphicsQueue.submit({ submitInfo }, m_inFlightImages[m_currentFrame].get());
 
 		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_swapChain.get(), &imageIndex);
 
@@ -753,6 +814,7 @@ private:
 	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
 	BoundedBuffer							m_deviceVertecies;
 	BoundedBuffer							m_deviceIndices;
+	std::vector<BoundedBuffer>				m_uniforms;
 	vk::UniqueSwapchainKHR  				m_swapChain;
 	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
 	vk::UniqueRenderPass 					m_renderPass;
@@ -760,6 +822,7 @@ private:
 	vk::UniquePipeline 						m_pipeline;
 	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
 	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
+	vk::UniqueDescriptorSetLayout			m_descriptorSetLayout;
 
 	int 									m_currentFrame;
 	vk::DispatchLoaderDynamic 				m_dispatchDynamic;

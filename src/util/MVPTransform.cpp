@@ -1,6 +1,6 @@
 #include "MVPTransform.h"
 
-glm::mat4 MVPTransform::transform() const
+MVPTransform mkTransform(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection)
 {
     return projection * view * model;
 }
