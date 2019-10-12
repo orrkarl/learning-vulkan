@@ -617,6 +617,27 @@ private:
 
 		m_device->waitIdle();
 
+		for (auto& cmdBuffer : m_commandBuffers)
+		{
+			cmdBuffer.reset();
+		}
+		m_descriptorPool.reset();
+		for (auto& uniform : m_uniforms)
+		{
+			uniform.reset();
+		}
+		for (auto& framebuffer : m_frameBuffers)
+		{
+			framebuffer.reset();
+		}
+		m_pipeline.reset();
+		m_renderPass.reset();
+		for (auto& view : m_swapChainImageViews)
+		{
+			view.reset();
+		}
+		m_swapChain.reset();
+
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
@@ -804,10 +825,14 @@ private:
 
 		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_swapChain.get(), &imageIndex);
 
-		status = m_presentQueue.presentKHR(presentInfo);
+		status = m_presentQueue.presentKHR(&presentInfo);
 		if (status == vk::Result::eErrorOutOfDateKHR || status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
+		}
+		else if (status != vk::Result::eSuccess)
+		{
+			vk::throwResultException(status, "could not present queue!");
 		}
 
 		m_currentFrame = (m_currentFrame + 1) % config::MAX_FRAMES_IN_FLIGHT;

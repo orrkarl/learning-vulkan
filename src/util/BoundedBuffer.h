@@ -34,6 +34,8 @@ public:
 
     const vk::DeviceMemory& memory() const;
 
+    void reset();
+
 private:
     vk::UniqueBuffer m_buffer;
     vk::UniqueDeviceMemory m_memory;

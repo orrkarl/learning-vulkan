@@ -67,3 +67,9 @@ const vk::DeviceMemory& BoundedBuffer::memory() const
 {
     return *m_memory; 
 }
+
+void BoundedBuffer::reset()
+{
+    m_buffer.reset();
+    m_memory.reset();
+}
