@@ -477,7 +477,7 @@ private:
 			VK_FALSE,
 			vk::PolygonMode::eFill,
 			vk::CullModeFlagBits::eBack,
-			vk::FrontFace::eClockwise,
+			vk::FrontFace::eCounterClockwise,
 			VK_FALSE,
 			0.0f, 0.0f, 0.0f,
 			1.0f
@@ -580,6 +580,7 @@ private:
 				m_commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.get());
 				m_commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
 				m_commandBuffers[i]->bindIndexBuffer(m_deviceIndices.buffer(), 0, vk::IndexType::eUint16);
+				m_commandBuffers[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_pipelineLayout, 0, {m_descriptorSets[i]}, {});
 				m_commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
 				m_commandBuffers[i]->endRenderPass();
 			m_commandBuffers[i]->end();
@@ -622,6 +623,8 @@ private:
 		createGraphicsPipeline();
 		createFramebuffers();
 		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 	}
 
@@ -702,6 +705,31 @@ private:
 		}
 	}
 
+	void createDescriptorPool()
+	{
+		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_swapChainImages.size());
+		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_swapChainImages.size(), 1, &poolSize);
+
+		m_descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
+	}
+
+	void createDescriptorSets()
+	{
+		const std::vector<vk::DescriptorSetLayout> layouts(m_swapChainImages.size(), *m_descriptorSetLayout);
+		vk::DescriptorSetAllocateInfo allocInfo(*m_descriptorPool, layouts.size(), layouts.data());
+		m_descriptorSets = m_device->allocateDescriptorSets(allocInfo);
+
+		vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
+		vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
+		for (auto i = 0u; i < m_swapChainImages.size(); ++i)
+		{
+			bufferInfo.setBuffer(m_uniforms[i].buffer());
+			descriptorWrite.setDstSet(m_descriptorSets[i]);
+
+			m_device->updateDescriptorSets({descriptorWrite}, {});
+		}
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -721,6 +749,8 @@ private:
 		createCommandPool();
 		createVertexBuffers();
 		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -823,6 +853,8 @@ private:
 	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
 	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
 	vk::UniqueDescriptorSetLayout			m_descriptorSetLayout;
+	vk::UniqueDescriptorPool				m_descriptorPool;
+	std::vector<vk::DescriptorSet> 			m_descriptorSets;
 
 	int 									m_currentFrame;
 	vk::DispatchLoaderDynamic 				m_dispatchDynamic;
