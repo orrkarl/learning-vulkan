@@ -617,25 +617,13 @@ private:
 
 		m_device->waitIdle();
 
-		for (auto& cmdBuffer : m_commandBuffers)
-		{
-			cmdBuffer.reset();
-		}
+		m_commandBuffers.clear();
 		m_descriptorPool.reset();
-		for (auto& uniform : m_uniforms)
-		{
-			uniform.reset();
-		}
-		for (auto& framebuffer : m_frameBuffers)
-		{
-			framebuffer.reset();
-		}
+		m_uniforms.clear();
+		m_frameBuffers.clear();
 		m_pipeline.reset();
 		m_renderPass.reset();
-		for (auto& view : m_swapChainImageViews)
-		{
-			view.reset();
-		}
+		m_swapChainImageViews.clear();
 		m_swapChain.reset();
 
 		createSwapChain();
