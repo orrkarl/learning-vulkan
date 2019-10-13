@@ -635,11 +635,13 @@ private:
 		m_graphics.frameBuffers.clear();
 		m_graphics.pipeline.reset();
 		m_graphics.renderPass.reset();
-		m_present.swapChainImageViews.clear();
-		m_present.swapChain.reset();
 
-		createSwapChain();
-		createImageViews();
+		//m_present.swapChainImageViews.clear();
+		//m_present.swapChain.reset();
+		//createSwapChain();
+		//createImageViews();
+		m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
+
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
@@ -761,6 +763,7 @@ private:
 		createRenderSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+		// m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
