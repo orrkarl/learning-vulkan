@@ -853,6 +853,8 @@ private:
 		vk::DebugUtilsMessengerEXT, 
 		vk::DispatchLoaderDynamic> 			m_debugMessenger;
 	vk::UniqueDevice 						m_device;
+	vk::UniqueSwapchainKHR  				m_swapChain;
+	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
 	vk::UniqueCommandPool 					m_commandPool;
 	std::vector<vk::UniqueSemaphore> 		m_imageAvailable;
 	std::vector<vk::UniqueFence> 			m_inFlightImages;
@@ -860,8 +862,6 @@ private:
 	BoundedBuffer							m_deviceVertecies;
 	BoundedBuffer							m_deviceIndices;
 	std::vector<BoundedBuffer>				m_uniforms;
-	vk::UniqueSwapchainKHR  				m_swapChain;
-	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
 	vk::UniqueRenderPass 					m_renderPass;
 	vk::UniquePipelineLayout 				m_pipelineLayout;
 	vk::UniquePipeline 						m_pipeline;
