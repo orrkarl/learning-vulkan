@@ -597,16 +597,16 @@ private:
 
 	void createSyncObjects()
 	{
-		auto size = m_present.swapChainImages.size();
+		auto count = config::MAX_FRAMES_IN_FLIGHT;
 
-		imageAvailable.resize(size);
-		renderCompleted.resize(size);
-		inFlightImages.resize(size);
+		imageAvailable.resize(count);
+		renderCompleted.resize(count);
+		inFlightImages.resize(count);
 
 		auto semaphoreInfo = vk::SemaphoreCreateInfo();
 		vk::FenceCreateInfo fenceInfo(vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled));
 
-		for (auto i = 0u; i < size; ++i)
+		for (auto i = 0u; i < count; ++i)
 		{
 			imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
 			renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
