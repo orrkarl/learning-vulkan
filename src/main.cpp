@@ -791,37 +791,21 @@ private:
 		m_device->unmapMemory(deviceUniform.memory());
 	}
 
-	void drawFrame()
+	void doGraphics(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify, const uint32_t& imageIndex)
 	{
-		m_device->waitForFences(1, &inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
-		const vk::Semaphore* waitSemaphore = &imageAvailable[m_currentFrame].get();
-		const vk::Semaphore* signalSemaphore = &renderCompleted[m_currentFrame].get();
-
-		uint32_t imageIndex;
-		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
-		if (status == vk::Result::eErrorOutOfDateKHR)
-		{
-			recreateSwapchain();
-			return;
-		}
-		
-		else if (status != vk::Result::eSuccess and status != vk::Result::eSuboptimalKHR)
-		{
-			vk::throwResultException(status, "could not aquire next image");
-		}
-
 		const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		const vk::SubmitInfo submitInfo(1, waitSemaphore, &waitStage, 1, &m_graphics.commandBuffers[imageIndex].get(), 1, signalSemaphore);
-
-		m_device->resetFences(1, &inFlightImages[m_currentFrame].get());
+		const vk::SubmitInfo submitInfo(1, &wait, &waitStage, 1, &m_graphics.commandBuffers[imageIndex].get(), 1, &signal);
 
 		updateUniformBuffer(m_graphics.uniforms[imageIndex]);
 
-		m_graphics.queue.submit({ submitInfo }, inFlightImages[m_currentFrame].get());
+		m_graphics.queue.submit({ submitInfo }, hostNotify);
+	}
 
-		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_present.swapChain.get(), &imageIndex);
+	void doPresnet(const vk::Semaphore& signal, const uint32_t& imageIndex)
+	{
+		vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_present.swapChain.get(), &imageIndex);
 
-		status = m_present.queue.presentKHR(&presentInfo);
+		auto status = m_present.queue.presentKHR(&presentInfo);
 		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
@@ -830,7 +814,41 @@ private:
 		{
 			vk::throwResultException(status, "could not present queue!");
 		}
+	}
 
+	uint32_t acquireNextImage(const vk::Semaphore& wait)
+	{
+		uint32_t imageIndex;
+		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), wait, vk::Fence(), &imageIndex);
+		if (status == vk::Result::eErrorOutOfDateKHR)
+		{
+			recreateSwapchain();
+			return acquireNextImage(wait);
+		}
+		
+		else if (status != vk::Result::eSuccess and status != vk::Result::eSuboptimalKHR)
+		{
+			vk::throwResultException(status, "could not aquire next image");
+		}
+
+		return imageIndex;
+	}
+
+	void drawFrame(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify)
+	{
+		m_device->waitForFences(1, &hostNotify, VK_TRUE, std::numeric_limits<uint64_t>::max());
+		m_device->resetFences(1, &hostNotify);
+
+		auto imageIndex = acquireNextImage(wait);
+		
+		doGraphics(wait, signal, hostNotify, imageIndex);
+		doPresnet(signal, imageIndex);
+
+	}
+
+	void drawFrame()
+	{
+		drawFrame(*imageAvailable[m_currentFrame], *renderCompleted[m_currentFrame], *inFlightImages[m_currentFrame]);
 		m_currentFrame = (m_currentFrame + 1) % config::MAX_FRAMES_IN_FLIGHT;
 	}
 
