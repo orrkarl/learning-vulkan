@@ -15,6 +15,11 @@ QueueFamilyIndices::QueueFamilyIndices(const vk::PhysicalDevice& dev, const vk::
 				m_graphics = queueIdx;
 			}
 
+			if (family.queueFlags & vk::QueueFlagBits::eCompute)
+			{
+				m_compute = queueIdx;
+			}
+
 			presentSupport = dev.getSurfaceSupportKHR(queueIdx, surface);
 			if (presentSupport)
 			{
@@ -30,6 +35,11 @@ QueueFamilyIndices::QueueFamilyIndices(const vk::PhysicalDevice& dev, const vk::
 	}
 }
 
+const uint32_t& QueueFamilyIndices::compute() const
+{
+    return *m_compute;
+}
+
 const uint32_t& QueueFamilyIndices::graphics() const
 {
     return *m_graphics;
@@ -42,7 +52,12 @@ const uint32_t& QueueFamilyIndices::present() const
 
 bool QueueFamilyIndices::hasAllQueues() const
 {
-    return hasGraphics() and hasPresent();
+    return hasCompute() and hasGraphics() and hasPresent();
+}
+
+bool QueueFamilyIndices::hasCompute() const
+{
+	return m_compute.has_value();
 }
 
 bool QueueFamilyIndices::hasGraphics() const

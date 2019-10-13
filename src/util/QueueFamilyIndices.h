@@ -9,12 +9,16 @@ class QueueFamilyIndices
 public:
     QueueFamilyIndices(const vk::PhysicalDevice& dev, const vk::SurfaceKHR& surface);
 
+    const uint32_t& compute() const;
+
     const uint32_t& graphics() const;
 
     const uint32_t& present() const;
 
     bool hasAllQueues() const;
     
+    bool hasCompute() const;
+
     bool hasGraphics() const;
 
     bool hasPresent() const;
@@ -22,6 +26,7 @@ public:
     operator bool() const;
 
 private:
+    std::optional<uint32_t> m_compute = std::nullopt;
     std::optional<uint32_t> m_graphics = std::nullopt;
     std::optional<uint32_t> m_present = std::nullopt;
 };

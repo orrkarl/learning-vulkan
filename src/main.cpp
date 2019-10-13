@@ -273,6 +273,7 @@ private:
 		);
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
 
+		m_computeQueue = m_device->getQueue(indices.compute(), 0);
 		m_graphicsQueue = m_device->getQueue(indices.graphics(), 0);
 		m_presentQueue = m_device->getQueue(indices.present(), 0);
 	}
@@ -869,6 +870,7 @@ private:
 	vk::UniqueDescriptorPool				m_descriptorPool;
 	std::vector<vk::DescriptorSet> 			m_descriptorSets;
 
+	vk::Queue								m_computeQueue;
 	int 									m_currentFrame;
 	vk::DispatchLoaderDynamic 				m_dispatchDynamic;
 	vk::Queue 								m_graphicsQueue;
