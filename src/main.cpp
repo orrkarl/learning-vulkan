@@ -599,18 +599,18 @@ private:
 	{
 		auto size = m_present.swapChainImages.size();
 
-		m_graphics.imageAvailable.resize(size);
-		m_graphics.renderCompleted.resize(size);
-		m_graphics.inFlightImages.resize(size);
+		imageAvailable.resize(size);
+		renderCompleted.resize(size);
+		inFlightImages.resize(size);
 
 		auto semaphoreInfo = vk::SemaphoreCreateInfo();
 		vk::FenceCreateInfo fenceInfo(vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled));
 
 		for (auto i = 0u; i < size; ++i)
 		{
-			m_graphics.imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			m_graphics.renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			m_graphics.inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
+			imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
 		}
 	}
 
@@ -793,12 +793,12 @@ private:
 
 	void drawFrame()
 	{
-		m_device->waitForFences(1, &m_graphics.inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
-		const vk::Semaphore* waitSemaphore = &m_graphics.imageAvailable[m_currentFrame].get();
-		const vk::Semaphore* signalSemaphore = &m_graphics.renderCompleted[m_currentFrame].get();
+		m_device->waitForFences(1, &inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
+		const vk::Semaphore* waitSemaphore = &imageAvailable[m_currentFrame].get();
+		const vk::Semaphore* signalSemaphore = &renderCompleted[m_currentFrame].get();
 
 		uint32_t imageIndex;
-		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), m_graphics.imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
+		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
 		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
 			recreateSwapchain();
@@ -813,11 +813,11 @@ private:
 		const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 		const vk::SubmitInfo submitInfo(1, waitSemaphore, &waitStage, 1, &m_graphics.commandBuffers[imageIndex].get(), 1, signalSemaphore);
 
-		m_device->resetFences(1, &m_graphics.inFlightImages[m_currentFrame].get());
+		m_device->resetFences(1, &inFlightImages[m_currentFrame].get());
 
 		updateUniformBuffer(m_graphics.uniforms[imageIndex]);
 
-		m_graphics.queue.submit({ submitInfo }, m_graphics.inFlightImages[m_currentFrame].get());
+		m_graphics.queue.submit({ submitInfo }, inFlightImages[m_currentFrame].get());
 
 		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_present.swapChain.get(), &imageIndex);
 
@@ -856,6 +856,10 @@ private:
 	
 	Present m_present;
 	Graphics m_graphics;
+
+    std::vector<vk::UniqueSemaphore> 		imageAvailable;
+    std::vector<vk::UniqueFence> 			inFlightImages;
+    std::vector<vk::UniqueSemaphore>		renderCompleted;
 	
 	vk::Queue								m_computeQueue;
 	int 									m_currentFrame;
