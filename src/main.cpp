@@ -113,12 +113,14 @@ public:
 		initWindow();
 		initVulkan();
 		mainLoop();
-		cleanup();
 	}
 
 	~HelloTriangleApp()
 	{
 		m_device->waitIdle();
+
+		glfwDestroyWindow(m_window);
+		glfwTerminate();
 	}
 
 private:
@@ -842,12 +844,6 @@ private:
 
 		m_graphicsQueue.waitIdle();
 		m_presentQueue.waitIdle();
-	}
-
-	void cleanup()
-	{
-		glfwDestroyWindow(m_window);
-		glfwTerminate();
 	}
 
 // Order of fields is important for destructors
