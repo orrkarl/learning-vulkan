@@ -281,8 +281,8 @@ private:
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
 
 		m_computeQueue = m_device->getQueue(indices.compute(), 0);
-		m_graphicsQueue = m_device->getQueue(indices.graphics(), 0);
-		m_presentQueue = m_device->getQueue(indices.present(), 0);
+		m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
+		m_present.queue = m_device->getQueue(indices.present(), 0);
 	}
 
 	void createSwapChain()
@@ -327,11 +327,11 @@ private:
 		chainInfo.clipped = VK_TRUE;
 		chainInfo.oldSwapchain = vk::SwapchainKHR();
 
-		m_swapChain = m_device->createSwapchainKHRUnique(chainInfo);
-		m_swapChainExtent = extent;
-		m_swapChainImageFormat = format.format;
+		m_present.swapChain = m_device->createSwapchainKHRUnique(chainInfo);
+		m_present.swapChainExtent = extent;
+		m_present.swapChainImageFormat = format.format;
 
-		m_swapChainImages = m_device->getSwapchainImagesKHR(m_swapChain.get());
+		m_present.swapChainImages = m_device->getSwapchainImagesKHR(m_present.swapChain.get());
 	}
 
 	void createImageViews()
@@ -340,7 +340,7 @@ private:
 			vk::ImageViewCreateFlags(),
 			vk::Image(),
 			vk::ImageViewType::e2D,
-			m_swapChainImageFormat,
+			m_present.swapChainImageFormat,
 			vk::ComponentMapping(),
 			vk::ImageSubresourceRange(
 				vk::ImageAspectFlagBits::eColor,
@@ -351,11 +351,11 @@ private:
 			)
 		);
 
-		m_swapChainImageViews.resize(m_swapChainImages.size());
-		for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+		m_present.swapChainImageViews.resize(m_present.swapChainImages.size());
+		for (size_t i = 0; i < m_present.swapChainImageViews.size(); i++)
 		{
-			createInfo.image = m_swapChainImages[i];
-			m_swapChainImageViews[i] = m_device->createImageViewUnique(createInfo);
+			createInfo.image = m_present.swapChainImages[i];
+			m_present.swapChainImageViews[i] = m_device->createImageViewUnique(createInfo);
 		}
 	}
 
@@ -374,7 +374,7 @@ private:
 	{
 		vk::AttachmentDescription color(
 			vk::AttachmentDescriptionFlags(),
-			m_swapChainImageFormat,
+			m_present.swapChainImageFormat,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eStore,
@@ -403,7 +403,7 @@ private:
 			1, &dependency
 		);
 
-		m_renderPass = m_device->createRenderPassUnique(renderPassInfo);
+		m_graphics.renderPass = m_device->createRenderPassUnique(renderPassInfo);
 	}
 
 	void createDescriptorSetLayout()
@@ -415,7 +415,7 @@ private:
 			vk::ShaderStageFlagBits::eVertex
 		);
 
-		m_descriptorSetLayout = m_device->createDescriptorSetLayoutUnique(
+		m_graphics.descriptorSetLayout = m_device->createDescriptorSetLayoutUnique(
 			vk::DescriptorSetLayoutCreateInfo(
 				vk::DescriptorSetLayoutCreateFlags(), 
 				1, &mvpLayoutBinding
@@ -464,13 +464,13 @@ private:
 
 		vk::Viewport viewport(
 			0, 0, 
-			static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height),
+			static_cast<float>(m_present.swapChainExtent.width), static_cast<float>(m_present.swapChainExtent.height),
 			0.0f, 1.0f
 		);
 
 		vk::Rect2D scissor(
 			vk::Offset2D(0, 0), 
-			m_swapChainExtent
+			m_present.swapChainExtent
 		);
 
 		vk::PipelineViewportStateCreateInfo viewportState(
@@ -507,9 +507,9 @@ private:
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo;
 		pipelineLayoutInfo.setSetLayoutCount(1);
-		pipelineLayoutInfo.setPSetLayouts(&m_descriptorSetLayout.get());
+		pipelineLayoutInfo.setPSetLayouts(&m_graphics.descriptorSetLayout.get());
 
-		m_pipelineLayout = m_device->createPipelineLayoutUnique(pipelineLayoutInfo);
+		m_graphics.pipelineLayout = m_device->createPipelineLayoutUnique(pipelineLayoutInfo);
 
 		vk::GraphicsPipelineCreateInfo graphicsInfo(
 			vk::PipelineCreateFlags(),
@@ -523,29 +523,29 @@ private:
 			nullptr,
 			&colorBlending,
 			nullptr,
-			m_pipelineLayout.get(),
-			m_renderPass.get()
+			m_graphics.pipelineLayout.get(),
+			m_graphics.renderPass.get()
 		);
 
-		m_pipeline = m_device->createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
+		m_graphics.pipeline = m_device->createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
 	}
 
 	void createFramebuffers()
 	{
-		m_frameBuffers.resize(m_swapChainImages.size());
+		m_graphics.frameBuffers.resize(m_present.swapChainImages.size());
 
 		vk::FramebufferCreateInfo framebufferInfo(
 			vk::FramebufferCreateFlags(), 
-			m_renderPass.get(), 
+			m_graphics.renderPass.get(), 
 			1, nullptr, 
-			m_swapChainExtent.width, m_swapChainExtent.height, 
+			m_present.swapChainExtent.width, m_present.swapChainExtent.height, 
 			1
 		);
 
-		for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
+		for (auto i = 0u; i < m_present.swapChainImageViews.size(); ++i)
 		{
-			framebufferInfo.pAttachments = &m_swapChainImageViews[i].get();
-			m_frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
+			framebufferInfo.pAttachments = &m_present.swapChainImageViews[i].get();
+			m_graphics.frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
 		}
 	}
 
@@ -553,71 +553,71 @@ private:
 	{
 		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
 		vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), indices.graphics());
-		m_commandPool = m_device->createCommandPoolUnique(commandPoolInfo);
+		m_graphics.commandPool = m_device->createCommandPoolUnique(commandPoolInfo);
 	}
 
 	void createCommandBuffers()
 	{
 		vk::CommandBufferAllocateInfo allocInfo(
-			m_commandPool.get(), 
+			m_graphics.commandPool.get(), 
 			vk::CommandBufferLevel::ePrimary, 
-			static_cast<uint32_t>(m_swapChainImageViews.size())
+			static_cast<uint32_t>(m_present.swapChainImageViews.size())
 		);
 
-		m_commandBuffers = m_device->allocateCommandBuffersUnique(allocInfo);
+		m_graphics.commandBuffers = m_device->allocateCommandBuffersUnique(allocInfo);
 
 		vk::CommandBufferBeginInfo commandBufferBegin{};
 
-		vk::Buffer vertexBuffers[] = { m_deviceVertecies.buffer() };
+		vk::Buffer vertexBuffers[] = { m_graphics.deviceVertecies.buffer() };
 		vk::DeviceSize vertexOffsets[] = { 0 };
 
 		vk::RenderPassBeginInfo renderPassBegin;
-		renderPassBegin.renderPass = m_renderPass.get();
+		renderPassBegin.renderPass = m_graphics.renderPass.get();
 		renderPassBegin.renderArea.offset = vk::Offset2D(0, 0);
-		renderPassBegin.renderArea.extent = m_swapChainExtent;
+		renderPassBegin.renderArea.extent = m_present.swapChainExtent;
 		vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
 		renderPassBegin.clearValueCount = 1;
 		renderPassBegin.pClearValues = &clearColor;
 
-		for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
+		for (auto i = 0u; i < m_present.swapChainImageViews.size(); ++i)
 		{
-			renderPassBegin.framebuffer = m_frameBuffers[i].get();
+			renderPassBegin.framebuffer = m_graphics.frameBuffers[i].get();
 
-			m_commandBuffers[i]->begin(commandBufferBegin);
-				m_commandBuffers[i]->beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
-				m_commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.get());
-				m_commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
-				m_commandBuffers[i]->bindIndexBuffer(m_deviceIndices.buffer(), 0, vk::IndexType::eUint16);
-				m_commandBuffers[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_pipelineLayout, 0, {m_descriptorSets[i]}, {});
-				m_commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
-				m_commandBuffers[i]->endRenderPass();
-			m_commandBuffers[i]->end();
+			m_graphics.commandBuffers[i]->begin(commandBufferBegin);
+				m_graphics.commandBuffers[i]->beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
+				m_graphics.commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics.pipeline.get());
+				m_graphics.commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
+				m_graphics.commandBuffers[i]->bindIndexBuffer(m_graphics.deviceIndices.buffer(), 0, vk::IndexType::eUint16);
+				m_graphics.commandBuffers[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_graphics.pipelineLayout, 0, {m_graphics.descriptorSets[i]}, {});
+				m_graphics.commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
+				m_graphics.commandBuffers[i]->endRenderPass();
+			m_graphics.commandBuffers[i]->end();
 		}
 	}
 
 	void createSyncObjects()
 	{
-		auto size = m_swapChainImages.size();
+		auto size = m_present.swapChainImages.size();
 
-		m_imageAvailable.resize(size);
-		m_renderCompleted.resize(size);
-		m_inFlightImages.resize(size);
+		m_graphics.imageAvailable.resize(size);
+		m_graphics.renderCompleted.resize(size);
+		m_graphics.inFlightImages.resize(size);
 
 		auto semaphoreInfo = vk::SemaphoreCreateInfo();
 		vk::FenceCreateInfo fenceInfo(vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled));
 
 		for (auto i = 0u; i < size; ++i)
 		{
-			m_imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			m_renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			m_inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
+			m_graphics.imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_graphics.renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_graphics.inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
 		}
 	}
 
 	void recreateSwapchain()
 	{
 		int w = 0, h = 0;
-		while (w == 0 && h == 0)
+		while (w == 0 and h == 0)
 		{
 			glfwGetFramebufferSize(m_window, &w, &h);
 			glfwWaitEvents();
@@ -625,14 +625,14 @@ private:
 
 		m_device->waitIdle();
 
-		m_commandBuffers.clear();
-		m_descriptorPool.reset();
-		m_uniforms.clear();
-		m_frameBuffers.clear();
-		m_pipeline.reset();
-		m_renderPass.reset();
-		m_swapChainImageViews.clear();
-		m_swapChain.reset();
+		m_graphics.commandBuffers.clear();
+		m_graphics.descriptorPool.reset();
+		m_graphics.uniforms.clear();
+		m_graphics.frameBuffers.clear();
+		m_graphics.pipeline.reset();
+		m_graphics.renderPass.reset();
+		m_present.swapChainImageViews.clear();
+		m_present.swapChain.reset();
 
 		createSwapChain();
 		createImageViews();
@@ -650,14 +650,14 @@ private:
 		auto copyCommand = vk::UniqueCommandBuffer(
 			m_device->allocateCommandBuffers(
 				vk::CommandBufferAllocateInfo(
-					*m_commandPool,
+					*m_graphics.commandPool,
 					vk::CommandBufferLevel::ePrimary,
 					1
 				)
 			)[0],
 			vk::PoolFree(
 				*m_device, 
-				*m_commandPool, 
+				*m_graphics.commandPool, 
 				vk::DispatchLoaderStatic()
 			)
 		);
@@ -674,7 +674,7 @@ private:
 		vk::SubmitInfo submitInfo;
 		submitInfo.setCommandBufferCount(1);
 		submitInfo.setPCommandBuffers(&copyCommand.get());
-		m_graphicsQueue.submit(1, &submitInfo, *copyFence);
+		m_graphics.queue.submit(1, &submitInfo, *copyFence);
 
 		m_device->waitForFences(1, &copyFence.get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
 	}
@@ -703,18 +703,18 @@ private:
 
 	void createVertexBuffers()
 	{
-		m_deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		m_deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+		m_graphics.deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+		m_graphics.deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
 	}
 
 	void createUniformBuffers()
 	{
-		m_uniforms.resize(m_swapChainImages.size());
+		m_graphics.uniforms.resize(m_present.swapChainImages.size());
 
 		auto bufferSize = sizeof(MVPTransform);
-		for (auto i = 0; i < m_uniforms.size(); ++i)
+		for (auto i = 0; i < m_graphics.uniforms.size(); ++i)
 		{
-			m_uniforms[i] = BoundedBuffer(
+			m_graphics.uniforms[i] = BoundedBuffer(
 				m_physicalDevice, *m_device, 
 				bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, 
 				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
@@ -724,24 +724,24 @@ private:
 
 	void createDescriptorPool()
 	{
-		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_swapChainImages.size());
-		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_swapChainImages.size(), 1, &poolSize);
+		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_present.swapChainImages.size());
+		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_present.swapChainImages.size(), 1, &poolSize);
 
-		m_descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
+		m_graphics.descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
 	}
 
 	void createDescriptorSets()
 	{
-		const std::vector<vk::DescriptorSetLayout> layouts(m_swapChainImages.size(), *m_descriptorSetLayout);
-		vk::DescriptorSetAllocateInfo allocInfo(*m_descriptorPool, layouts.size(), layouts.data());
-		m_descriptorSets = m_device->allocateDescriptorSets(allocInfo);
+		const std::vector<vk::DescriptorSetLayout> layouts(m_present.swapChainImages.size(), *m_graphics.descriptorSetLayout);
+		vk::DescriptorSetAllocateInfo allocInfo(*m_graphics.descriptorPool, layouts.size(), layouts.data());
+		m_graphics.descriptorSets = m_device->allocateDescriptorSets(allocInfo);
 
 		vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
 		vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
-		for (auto i = 0u; i < m_swapChainImages.size(); ++i)
+		for (auto i = 0u; i < m_present.swapChainImages.size(); ++i)
 		{
-			bufferInfo.setBuffer(m_uniforms[i].buffer());
-			descriptorWrite.setDstSet(m_descriptorSets[i]);
+			bufferInfo.setBuffer(m_graphics.uniforms[i].buffer());
+			descriptorWrite.setDstSet(m_graphics.descriptorSets[i]);
 
 			m_device->updateDescriptorSets({descriptorWrite}, {});
 		}
@@ -781,7 +781,7 @@ private:
 
 		auto model = glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		auto view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		auto proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+		auto proj = glm::perspective(glm::radians(45.0f), m_present.swapChainExtent.width / static_cast<float>(m_present.swapChainExtent.height), 0.1f, 10.0f);
 		proj[1][1] *= -1;
 
 		auto transform = mkTransform(model, view, proj);
@@ -793,36 +793,36 @@ private:
 
 	void drawFrame()
 	{
-		m_device->waitForFences(1, &m_inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
-		const vk::Semaphore* waitSemaphore = &m_imageAvailable[m_currentFrame].get();
-		const vk::Semaphore* signalSemaphore = &m_renderCompleted[m_currentFrame].get();
+		m_device->waitForFences(1, &m_graphics.inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
+		const vk::Semaphore* waitSemaphore = &m_graphics.imageAvailable[m_currentFrame].get();
+		const vk::Semaphore* signalSemaphore = &m_graphics.renderCompleted[m_currentFrame].get();
 
 		uint32_t imageIndex;
-		auto status = m_device->acquireNextImageKHR(m_swapChain.get(), std::numeric_limits<uint64_t>::max(), m_imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
+		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), m_graphics.imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
 		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
 			recreateSwapchain();
 			return;
 		}
 		
-		else if (status != vk::Result::eSuccess && status != vk::Result::eSuboptimalKHR)
+		else if (status != vk::Result::eSuccess and status != vk::Result::eSuboptimalKHR)
 		{
 			vk::throwResultException(status, "could not aquire next image");
 		}
 
 		const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		const vk::SubmitInfo submitInfo(1, waitSemaphore, &waitStage, 1, &m_commandBuffers[imageIndex].get(), 1, signalSemaphore);
+		const vk::SubmitInfo submitInfo(1, waitSemaphore, &waitStage, 1, &m_graphics.commandBuffers[imageIndex].get(), 1, signalSemaphore);
 
-		m_device->resetFences(1, &m_inFlightImages[m_currentFrame].get());
+		m_device->resetFences(1, &m_graphics.inFlightImages[m_currentFrame].get());
 
-		updateUniformBuffer(m_uniforms[imageIndex]);
+		updateUniformBuffer(m_graphics.uniforms[imageIndex]);
 
-		m_graphicsQueue.submit({ submitInfo }, m_inFlightImages[m_currentFrame].get());
+		m_graphics.queue.submit({ submitInfo }, m_graphics.inFlightImages[m_currentFrame].get());
 
-		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_swapChain.get(), &imageIndex);
+		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_present.swapChain.get(), &imageIndex);
 
-		status = m_presentQueue.presentKHR(&presentInfo);
-		if (status == vk::Result::eErrorOutOfDateKHR || status == vk::Result::eSuboptimalKHR)
+		status = m_present.queue.presentKHR(&presentInfo);
+		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
 		}
@@ -842,8 +842,8 @@ private:
 			glfwPollEvents();
 		}
 
-		m_graphicsQueue.waitIdle();
-		m_presentQueue.waitIdle();
+		m_graphics.queue.waitIdle();
+		m_present.queue.waitIdle();
 	}
 
 // Order of fields is important for destructors
@@ -853,33 +853,14 @@ private:
 		vk::DebugUtilsMessengerEXT, 
 		vk::DispatchLoaderDynamic> 			m_debugMessenger;
 	vk::UniqueDevice 						m_device;
-	vk::UniqueSwapchainKHR  				m_swapChain;
-	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
-	vk::UniqueCommandPool 					m_commandPool;
-	std::vector<vk::UniqueSemaphore> 		m_imageAvailable;
-	std::vector<vk::UniqueFence> 			m_inFlightImages;
-	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
-	BoundedBuffer							m_deviceVertecies;
-	BoundedBuffer							m_deviceIndices;
-	std::vector<BoundedBuffer>				m_uniforms;
-	vk::UniqueRenderPass 					m_renderPass;
-	vk::UniquePipelineLayout 				m_pipelineLayout;
-	vk::UniquePipeline 						m_pipeline;
-	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
-	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
-	vk::UniqueDescriptorSetLayout			m_descriptorSetLayout;
-	vk::UniqueDescriptorPool				m_descriptorPool;
-	std::vector<vk::DescriptorSet> 			m_descriptorSets;
-
+	
+	Present m_present;
+	Graphics m_graphics;
+	
 	vk::Queue								m_computeQueue;
 	int 									m_currentFrame;
 	vk::DispatchLoaderDynamic 				m_dispatchDynamic;
-	vk::Queue 								m_graphicsQueue;
 	vk::PhysicalDevice 						m_physicalDevice;
-	vk::Queue 	 							m_presentQueue;
-	vk::Extent2D 							m_swapChainExtent;
-	vk::Format   							m_swapChainImageFormat;
-	std::vector<vk::Image>		 			m_swapChainImages;
 	GLFWwindow*								m_window;
 	bool									m_windowSizeChanged;
 
