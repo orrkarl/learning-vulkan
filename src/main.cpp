@@ -116,6 +116,11 @@ public:
 		cleanup();
 	}
 
+	~HelloTriangleApp()
+	{
+		m_device->waitIdle();
+	}
+
 private:
 	static void glfwFramebufferResize(GLFWwindow* window, int w, int h)
 	{
