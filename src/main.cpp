@@ -283,6 +283,8 @@ private:
 		m_computeQueue = m_device->getQueue(indices.compute(), 0);
 		m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
 		m_present.queue = m_device->getQueue(indices.present(), 0);
+
+		m_graphics.setDevice(*m_device);
 	}
 
 	void createSwapChain()
@@ -332,6 +334,8 @@ private:
 		m_present.swapChainImageFormat = format.format;
 
 		m_present.swapChainImages = m_device->getSwapchainImagesKHR(m_present.swapChain.get());
+
+		m_graphics.notifySwapchainUpdated(extent);
 	}
 
 	void createImageViews()
@@ -599,18 +603,18 @@ private:
 	{
 		auto count = config::MAX_FRAMES_IN_FLIGHT;
 
-		imageAvailable.resize(count);
-		renderCompleted.resize(count);
-		inFlightImages.resize(count);
+		m_imageAvailable.resize(count);
+		m_renderCompleted.resize(count);
+		m_inFlightImages.resize(count);
 
 		auto semaphoreInfo = vk::SemaphoreCreateInfo();
 		vk::FenceCreateInfo fenceInfo(vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled));
 
 		for (auto i = 0u; i < count; ++i)
 		{
-			imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
-			inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
+			m_imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
 		}
 	}
 
@@ -772,35 +776,6 @@ private:
 		createSyncObjects();
 	}
 
-	void updateUniformBuffer(const BoundedBuffer& deviceUniform)
-	{
-		static const auto initTime = std::chrono::high_resolution_clock::now();
-
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - initTime).count();
-
-		auto model = glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		auto view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		auto proj = glm::perspective(glm::radians(45.0f), m_present.swapChainExtent.width / static_cast<float>(m_present.swapChainExtent.height), 0.1f, 10.0f);
-		proj[1][1] *= -1;
-
-		auto transform = mkTransform(model, view, proj);
-
-		void* data = m_device->mapMemory(deviceUniform.memory(), 0, sizeof(MVPTransform));
-		memcpy(data, &transform, sizeof(transform));
-		m_device->unmapMemory(deviceUniform.memory());
-	}
-
-	void doGraphics(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify, const uint32_t& imageIndex)
-	{
-		const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		const vk::SubmitInfo submitInfo(1, &wait, &waitStage, 1, &m_graphics.commandBuffers[imageIndex].get(), 1, &signal);
-
-		updateUniformBuffer(m_graphics.uniforms[imageIndex]);
-
-		m_graphics.queue.submit({ submitInfo }, hostNotify);
-	}
-
 	void doPresnet(const vk::Semaphore& signal, const uint32_t& imageIndex)
 	{
 		vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_present.swapChain.get(), &imageIndex);
@@ -841,14 +816,14 @@ private:
 
 		auto imageIndex = acquireNextImage(wait);
 		
-		doGraphics(wait, signal, hostNotify, imageIndex);
+		// doGraphics(wait, signal, hostNotify, imageIndex);
+		m_graphics.render(wait, signal, hostNotify, imageIndex);
 		doPresnet(signal, imageIndex);
-
 	}
 
 	void drawFrame()
 	{
-		drawFrame(*imageAvailable[m_currentFrame], *renderCompleted[m_currentFrame], *inFlightImages[m_currentFrame]);
+		drawFrame(*m_imageAvailable[m_currentFrame], *m_renderCompleted[m_currentFrame], *m_inFlightImages[m_currentFrame]);
 		m_currentFrame = (m_currentFrame + 1) % config::MAX_FRAMES_IN_FLIGHT;
 	}
 
@@ -865,26 +840,26 @@ private:
 	}
 
 // Order of fields is important for destructors
-	vk::UniqueInstance 						m_instance;
-	vk::UniqueSurfaceKHR 					m_renderSurface;
+	vk::UniqueInstance 				m_instance;
+	vk::UniqueSurfaceKHR 			m_renderSurface;
 	vk::UniqueHandle<
 		vk::DebugUtilsMessengerEXT, 
-		vk::DispatchLoaderDynamic> 			m_debugMessenger;
-	vk::UniqueDevice 						m_device;
+		vk::DispatchLoaderDynamic> 	m_debugMessenger;
+	vk::UniqueDevice 				m_device;
 	
 	Present m_present;
 	Graphics m_graphics;
 
-    std::vector<vk::UniqueSemaphore> 		imageAvailable;
-    std::vector<vk::UniqueFence> 			inFlightImages;
-    std::vector<vk::UniqueSemaphore>		renderCompleted;
+    std::vector<vk::UniqueSemaphore> 	m_imageAvailable;
+    std::vector<vk::UniqueFence> 		m_inFlightImages;
+    std::vector<vk::UniqueSemaphore>	m_renderCompleted;
 	
-	vk::Queue								m_computeQueue;
-	int 									m_currentFrame;
-	vk::DispatchLoaderDynamic 				m_dispatchDynamic;
-	vk::PhysicalDevice 						m_physicalDevice;
-	GLFWwindow*								m_window;
-	bool									m_windowSizeChanged;
+	vk::Queue					m_computeQueue;
+	int 						m_currentFrame;
+	vk::DispatchLoaderDynamic 	m_dispatchDynamic;
+	vk::PhysicalDevice 			m_physicalDevice;
+	GLFWwindow*					m_window;
+	bool						m_windowSizeChanged;
 
 };
 
