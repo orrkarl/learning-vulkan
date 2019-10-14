@@ -48,17 +48,17 @@ Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice
     chainInfo.clipped = VK_TRUE;
     chainInfo.oldSwapchain = vk::SwapchainKHR();
 
-    swapChain = m_device.createSwapchainKHRUnique(chainInfo);
-    swapChainExtent = extent;
-    swapChainImageFormat = format.format;
+    m_swapChain = m_device.createSwapchainKHRUnique(chainInfo);
+    m_swapChainExtent = extent;
+    m_swapChainImageFormat = format.format;
 
-    swapChainImages = m_device.getSwapchainImagesKHR(swapChain.get());
+    auto m_swapChainImages = m_device.getSwapchainImagesKHR(m_swapChain.get());
 
     vk::ImageViewCreateInfo createInfo(
         vk::ImageViewCreateFlags(),
         vk::Image(),
         vk::ImageViewType::e2D,
-        swapChainImageFormat,
+        m_swapChainImageFormat,
         vk::ComponentMapping(),
         vk::ImageSubresourceRange(
             vk::ImageAspectFlagBits::eColor,
@@ -69,14 +69,14 @@ Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice
         )
     );
 
-    swapChainImageViews.resize(swapChainImages.size());
-    for (size_t i = 0; i < swapChainImageViews.size(); i++)
+    m_swapChainImageViews.resize(m_swapChainImages.size());
+    for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
     {
-        createInfo.image = swapChainImages[i];
-        swapChainImageViews[i] = m_device.createImageViewUnique(createInfo);
+        createInfo.image = m_swapChainImages[i];
+        m_swapChainImageViews[i] = m_device.createImageViewUnique(createInfo);
     }
 
-    queue = m_device.getQueue(indices.present(), 0);
+    m_queue = m_device.getQueue(indices.present(), 0);
 }
 
 Present::Present()
@@ -84,3 +84,57 @@ Present::Present()
     
 }
 
+
+std::ostream& operator<<(std::ostream& os, const vk::Extent2D& extent)
+{
+    return os << '(' << extent.width << ", " << extent.height << ')';
+}
+
+std::ostream& operator<<(std::ostream& os, const Present& self)
+{
+    os << "Present: {";
+        
+    os << "Chain: " << *self.m_swapChain << " -> " << self.m_swapChainExtent;
+        
+    os << ", Image Views: [ ";
+    for (const auto& view : self.m_swapChainImageViews)
+    {
+        os << *view << " ";
+    }
+    os << ']';
+
+    os << ", Queue: " << self.m_queue;
+    os << ", Device: " << self.m_device;
+
+    return os;
+}
+
+vk::Extent2D Present::extent() const
+{
+    return m_swapChainExtent;
+}
+
+vk::Format Present::format() const
+{
+    return m_swapChainImageFormat;
+}
+
+const vk::Queue& Present::queue() const
+{
+    return m_queue;
+}
+
+const uint32_t Present::imageCount() const
+{
+    return m_swapChainImageViews.size();
+}
+
+const vk::ImageView& Present::view(const uint32_t idx)
+{
+    return m_swapChainImageViews[idx].get();
+}
+
+const vk::SwapchainKHR& Present::chain() const
+{
+    return *m_swapChain;
+}

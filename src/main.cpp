@@ -282,85 +282,14 @@ private:
 
 		m_computeQueue = m_device->getQueue(indices.compute(), 0);
 		m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
-		m_present.queue = m_device->getQueue(indices.present(), 0);
 
 		m_graphics.setDevice(*m_device);
 	}
 
 	void createSwapChain()
 	{
-		auto support = SwapChainSupportDetails(m_physicalDevice, m_renderSurface.get());
-
-		auto format = support.chooseFormat();
-		auto presentationMode = support.choosePresentMode();
-		auto extent = support.chooseExtent(m_window);
-
-		auto imageCount = support.chooseImageCount();
-
-		vk::SwapchainCreateInfoKHR chainInfo(
-			vk::SwapchainCreateFlagsKHR(),
-			m_renderSurface.get(),
-			imageCount,
-			format.format,
-			format.colorSpace,
-			extent,
-			1,
-			vk::ImageUsageFlagBits::eColorAttachment
-		);
-
-		QueueFamilyIndices indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
-		uint32_t queueFamilyIndices[] = {indices.graphics(), indices.present()};
-		if (indices.graphics() != indices.present())
-		{
-			chainInfo.imageSharingMode = vk::SharingMode::eConcurrent;
-			chainInfo.queueFamilyIndexCount = 2;
-			chainInfo.pQueueFamilyIndices = queueFamilyIndices;
-		}
-		else
-		{
-			chainInfo.imageSharingMode = vk::SharingMode::eExclusive;
-			chainInfo.queueFamilyIndexCount = 0;	 // Optional
-			chainInfo.pQueueFamilyIndices = nullptr; // Optional
-		}
-
-		chainInfo.preTransform = support.getCurrentTransform();
-		chainInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-		chainInfo.presentMode = presentationMode;
-		chainInfo.clipped = VK_TRUE;
-		chainInfo.oldSwapchain = vk::SwapchainKHR();
-
-		m_present.swapChain = m_device->createSwapchainKHRUnique(chainInfo);
-		m_present.swapChainExtent = extent;
-		m_present.swapChainImageFormat = format.format;
-
-		m_present.swapChainImages = m_device->getSwapchainImagesKHR(m_present.swapChain.get());
-
-		m_graphics.notifySwapchainUpdated(extent);
-	}
-
-	void createImageViews()
-	{
-		vk::ImageViewCreateInfo createInfo(
-			vk::ImageViewCreateFlags(),
-			vk::Image(),
-			vk::ImageViewType::e2D,
-			m_present.swapChainImageFormat,
-			vk::ComponentMapping(),
-			vk::ImageSubresourceRange(
-				vk::ImageAspectFlagBits::eColor,
-				0,
-				1,
-				0,
-				1
-			)
-		);
-
-		m_present.swapChainImageViews.resize(m_present.swapChainImages.size());
-		for (size_t i = 0; i < m_present.swapChainImageViews.size(); i++)
-		{
-			createInfo.image = m_present.swapChainImages[i];
-			m_present.swapChainImageViews[i] = m_device->createImageViewUnique(createInfo);
-		}
+		m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
+		m_graphics.notifySwapchainUpdated(m_present.extent());
 	}
 
 	vk::UniqueShaderModule createShaderModule(const std::vector<char> &code)
@@ -378,7 +307,7 @@ private:
 	{
 		vk::AttachmentDescription color(
 			vk::AttachmentDescriptionFlags(),
-			m_present.swapChainImageFormat,
+			m_present.format(),
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eStore,
@@ -468,13 +397,13 @@ private:
 
 		vk::Viewport viewport(
 			0, 0, 
-			static_cast<float>(m_present.swapChainExtent.width), static_cast<float>(m_present.swapChainExtent.height),
+			static_cast<float>(m_present.extent().width), static_cast<float>(m_present.extent().height),
 			0.0f, 1.0f
 		);
 
 		vk::Rect2D scissor(
 			vk::Offset2D(0, 0), 
-			m_present.swapChainExtent
+			m_present.extent()
 		);
 
 		vk::PipelineViewportStateCreateInfo viewportState(
@@ -536,19 +465,19 @@ private:
 
 	void createFramebuffers()
 	{
-		m_graphics.frameBuffers.resize(m_present.swapChainImages.size());
+		m_graphics.frameBuffers.resize(m_present.imageCount());
 
 		vk::FramebufferCreateInfo framebufferInfo(
 			vk::FramebufferCreateFlags(), 
 			m_graphics.renderPass.get(), 
 			1, nullptr, 
-			m_present.swapChainExtent.width, m_present.swapChainExtent.height, 
+			m_present.extent().width, m_present.extent().height, 
 			1
 		);
 
-		for (auto i = 0u; i < m_present.swapChainImageViews.size(); ++i)
+		for (auto i = 0u; i < m_present.imageCount(); ++i)
 		{
-			framebufferInfo.pAttachments = &m_present.swapChainImageViews[i].get();
+			framebufferInfo.pAttachments = &m_present.view(i);
 			m_graphics.frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
 		}
 	}
@@ -565,7 +494,7 @@ private:
 		vk::CommandBufferAllocateInfo allocInfo(
 			m_graphics.commandPool.get(), 
 			vk::CommandBufferLevel::ePrimary, 
-			static_cast<uint32_t>(m_present.swapChainImageViews.size())
+			static_cast<uint32_t>(m_present.imageCount())
 		);
 
 		m_graphics.commandBuffers = m_device->allocateCommandBuffersUnique(allocInfo);
@@ -578,12 +507,12 @@ private:
 		vk::RenderPassBeginInfo renderPassBegin;
 		renderPassBegin.renderPass = m_graphics.renderPass.get();
 		renderPassBegin.renderArea.offset = vk::Offset2D(0, 0);
-		renderPassBegin.renderArea.extent = m_present.swapChainExtent;
+		renderPassBegin.renderArea.extent = m_present.extent();
 		vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
 		renderPassBegin.clearValueCount = 1;
 		renderPassBegin.pClearValues = &clearColor;
 
-		for (auto i = 0u; i < m_present.swapChainImageViews.size(); ++i)
+		for (auto i = 0u; i < m_present.imageCount(); ++i)
 		{
 			renderPassBegin.framebuffer = m_graphics.frameBuffers[i].get();
 
@@ -636,12 +565,7 @@ private:
 		m_graphics.pipeline.reset();
 		m_graphics.renderPass.reset();
 
-		//m_present.swapChainImageViews.clear();
-		//m_present.swapChain.reset();
-		//createSwapChain();
-		//createImageViews();
-		m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
-
+		createSwapChain();
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
@@ -715,7 +639,7 @@ private:
 
 	void createUniformBuffers()
 	{
-		m_graphics.uniforms.resize(m_present.swapChainImages.size());
+		m_graphics.uniforms.resize(m_present.imageCount());
 
 		auto bufferSize = sizeof(MVPTransform);
 		for (auto i = 0; i < m_graphics.uniforms.size(); ++i)
@@ -730,21 +654,21 @@ private:
 
 	void createDescriptorPool()
 	{
-		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_present.swapChainImages.size());
-		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_present.swapChainImages.size(), 1, &poolSize);
+		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_present.imageCount());
+		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_present.imageCount(), 1, &poolSize);
 
 		m_graphics.descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
 	}
 
 	void createDescriptorSets()
 	{
-		const std::vector<vk::DescriptorSetLayout> layouts(m_present.swapChainImages.size(), *m_graphics.descriptorSetLayout);
+		const std::vector<vk::DescriptorSetLayout> layouts(m_present.imageCount(), *m_graphics.descriptorSetLayout);
 		vk::DescriptorSetAllocateInfo allocInfo(*m_graphics.descriptorPool, layouts.size(), layouts.data());
 		m_graphics.descriptorSets = m_device->allocateDescriptorSets(allocInfo);
 
 		vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
 		vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
-		for (auto i = 0u; i < m_present.swapChainImages.size(); ++i)
+		for (auto i = 0u; i < m_present.imageCount(); ++i)
 		{
 			bufferInfo.setBuffer(m_graphics.uniforms[i].buffer());
 			descriptorWrite.setDstSet(m_graphics.descriptorSets[i]);
@@ -763,9 +687,7 @@ private:
 		createRenderSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
-		// m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
 		createSwapChain();
-		createImageViews();
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
@@ -781,9 +703,9 @@ private:
 
 	void doPresnet(const vk::Semaphore& signal, const uint32_t& imageIndex)
 	{
-		vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_present.swapChain.get(), &imageIndex);
+		vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_present.chain(), &imageIndex);
 
-		auto status = m_present.queue.presentKHR(&presentInfo);
+		auto status = m_present.queue().presentKHR(&presentInfo);
 		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
@@ -797,7 +719,7 @@ private:
 	uint32_t acquireNextImage(const vk::Semaphore& wait)
 	{
 		uint32_t imageIndex;
-		auto status = m_device->acquireNextImageKHR(m_present.swapChain.get(), std::numeric_limits<uint64_t>::max(), wait, vk::Fence(), &imageIndex);
+		auto status = m_device->acquireNextImageKHR(m_present.chain(), std::numeric_limits<uint64_t>::max(), wait, vk::Fence(), &imageIndex);
 		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
 			recreateSwapchain();
@@ -819,7 +741,6 @@ private:
 
 		auto imageIndex = acquireNextImage(wait);
 		
-		// doGraphics(wait, signal, hostNotify, imageIndex);
 		m_graphics.render(wait, signal, hostNotify, imageIndex);
 		doPresnet(signal, imageIndex);
 	}
@@ -839,7 +760,7 @@ private:
 		}
 
 		m_graphics.queue.waitIdle();
-		m_present.queue.waitIdle();
+		m_present.queue().waitIdle();
 	}
 
 // Order of fields is important for destructors
