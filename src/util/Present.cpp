@@ -6,6 +6,7 @@
 #include "QueueFamilyIndices.h"
 
 Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface, GLFWwindow* window)
+    : m_device(dev)
 {
     auto support = SwapChainSupportDetails(physicalDevice, surface);
 
@@ -117,11 +118,6 @@ vk::Format Present::format() const
     return m_swapChainImageFormat;
 }
 
-const vk::Queue& Present::queue() const
-{
-    return m_queue;
-}
-
 const uint32_t Present::imageCount() const
 {
     return m_swapChainImageViews.size();
@@ -132,7 +128,18 @@ const vk::ImageView& Present::view(const uint32_t idx)
     return m_swapChainImageViews[idx].get();
 }
 
-const vk::SwapchainKHR& Present::chain() const
+vk::Result Present::present(const vk::Semaphore& signal, const uint32_t& imageIndex)
 {
-    return *m_swapChain;
+    vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_swapChain.get(), &imageIndex);
+	return m_queue.presentKHR(&presentInfo);
+}
+
+vk::Result Present::acquireNextImage(const vk::Semaphore& wait, uint32_t& index)
+{
+	return m_device.acquireNextImageKHR(*m_swapChain, std::numeric_limits<uint64_t>::max(), wait, vk::Fence(), &index);
+}
+
+void Present::await()
+{
+    m_queue.waitIdle();
 }

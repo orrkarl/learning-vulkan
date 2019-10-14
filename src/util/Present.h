@@ -19,13 +19,15 @@ public:
 
     vk::Format format() const;
 
-    const vk::Queue& queue() const;
-
-    const vk::SwapchainKHR& chain() const;
-
     const uint32_t imageCount() const;
 
     const vk::ImageView& view(const uint32_t idx);
+
+    vk::Result present(const vk::Semaphore& signal, const uint32_t& imageIndex);
+
+    vk::Result acquireNextImage(const vk::Semaphore& wait, uint32_t& index);
+
+    void await();
 
 private:
     vk::UniqueSwapchainKHR  			m_swapChain;
@@ -33,4 +35,5 @@ private:
     vk::Queue 	 						m_queue;
     vk::Extent2D 						m_swapChainExtent;
     vk::Format   						m_swapChainImageFormat;
+    vk::Device                          m_device;
 };

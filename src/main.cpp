@@ -701,25 +701,10 @@ private:
 		createSyncObjects();
 	}
 
-	void doPresnet(const vk::Semaphore& signal, const uint32_t& imageIndex)
-	{
-		vk::PresentInfoKHR presentInfo(1, &signal, 1, &m_present.chain(), &imageIndex);
-
-		auto status = m_present.queue().presentKHR(&presentInfo);
-		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
-		{
-			recreateSwapchain();
-		}
-		else if (status != vk::Result::eSuccess)
-		{
-			vk::throwResultException(status, "could not present queue!");
-		}
-	}
-
 	uint32_t acquireNextImage(const vk::Semaphore& wait)
 	{
 		uint32_t imageIndex;
-		auto status = m_device->acquireNextImageKHR(m_present.chain(), std::numeric_limits<uint64_t>::max(), wait, vk::Fence(), &imageIndex);
+		auto status = m_present.acquireNextImage(wait, imageIndex);
 		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
 			recreateSwapchain();
@@ -742,7 +727,17 @@ private:
 		auto imageIndex = acquireNextImage(wait);
 		
 		m_graphics.render(wait, signal, hostNotify, imageIndex);
-		doPresnet(signal, imageIndex);
+		
+		auto status = m_present.present(signal, imageIndex);
+		
+		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
+		{
+			recreateSwapchain();
+		}
+		else if (status != vk::Result::eSuccess)
+		{
+			vk::throwResultException(status, "could not present queue!");
+		}
 	}
 
 	void drawFrame()
@@ -760,7 +755,7 @@ private:
 		}
 
 		m_graphics.queue.waitIdle();
-		m_present.queue().waitIdle();
+		m_present.await();
 	}
 
 // Order of fields is important for destructors
