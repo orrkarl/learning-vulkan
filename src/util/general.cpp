@@ -19,3 +19,37 @@ std::vector<char> readFile(const std::string &path)
 
 	return buffer;
 }
+
+vk::Fence copyBuffer(const vk::Device& device, const vk::Queue& queue, const vk::CommandPool& pool, const vk::Buffer& src, const vk::Buffer& dest, const vk::DeviceSize& size)
+{
+	auto copyCommand = vk::UniqueCommandBuffer(
+		device.allocateCommandBuffers(
+			vk::CommandBufferAllocateInfo(
+				pool,
+				vk::CommandBufferLevel::ePrimary,
+				1
+			)
+		)[0],
+		vk::PoolFree(
+			device, 
+			pool, 
+			vk::DispatchLoaderStatic()
+		)
+	);
+
+	copyCommand->begin(
+		vk::CommandBufferBeginInfo(
+			vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+		)
+	);
+	copyCommand->copyBuffer(src, dest, { vk::BufferCopy(0, 0, size) });
+	copyCommand->end();
+
+	auto copyFence = device.createFence(vk::FenceCreateInfo());
+	vk::SubmitInfo submitInfo;
+	submitInfo.setCommandBufferCount(1);
+	submitInfo.setPCommandBuffers(&copyCommand.get());
+	queue.submit(1, &submitInfo, copyFence);
+
+	return copyFence;
+}

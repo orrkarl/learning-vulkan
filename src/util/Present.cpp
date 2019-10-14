@@ -93,22 +93,18 @@ Present::Present(Present&& other)
     m_swapChainImageFormat = other.m_swapChainImageFormat;
     m_device = other.m_device;
 
-    other.m_swapChain = vk::SwapchainKHR();
-    other.m_swapChainImageViews = { };
-    other.m_queue = vk::Queue();
-    other.m_swapChainExtent = vk::Extent2D();
-    other.m_swapChainImageFormat = vk::Format();
-    other.m_device = vk::Device();
+    other.reset();
 }
 
 Present::~Present()
 {
+    release();
     reset();
 }
 
 Present& Present::operator=(Present&& other)
 {
-    reset();
+    release();
     
     m_swapChain = other.m_swapChain;
     m_swapChainImageViews = other.m_swapChainImageViews;
@@ -117,12 +113,7 @@ Present& Present::operator=(Present&& other)
     m_swapChainImageFormat = other.m_swapChainImageFormat;
     m_device = other.m_device;
 
-    other.m_swapChain = vk::SwapchainKHR();
-    other.m_swapChainImageViews = { };
-    other.m_queue = vk::Queue();
-    other.m_swapChainExtent = vk::Extent2D();
-    other.m_swapChainImageFormat = vk::Format();
-    other.m_device = vk::Device();
+    other.reset();
 }
 
 std::ostream& operator<<(std::ostream& os, const vk::Extent2D& extent)
@@ -163,7 +154,7 @@ const uint32_t Present::imageCount() const
     return m_swapChainImageViews.size();
 }
 
-const vk::ImageView& Present::view(const uint32_t idx)
+const vk::ImageView& Present::view(const uint32_t idx) const
 {
     return m_swapChainImageViews[idx];
 }
@@ -185,6 +176,16 @@ void Present::await()
 }
 
 void Present::reset()
+{
+    m_swapChain = vk::SwapchainKHR();
+    m_swapChainImageViews.clear();
+    m_queue = vk::Queue();
+    m_swapChainExtent = vk::Extent2D();
+    m_swapChainImageFormat = vk::Format();
+    m_device = vk::Device();
+}
+
+void Present::release()
 {
     for (const auto& view : m_swapChainImageViews)
         if (view)

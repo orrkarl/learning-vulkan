@@ -9,10 +9,41 @@
 
 #include "BoundedBuffer.h"
 #include "MVPTransform.h"
+#include "Present.h"
+
+struct Vertex
+{
+	glm::vec2 pos;
+	glm::vec3 color;
+
+	static vk::VertexInputBindingDescription getBindingDescription()
+	{
+		return vk::VertexInputBindingDescription(0, sizeof(Vertex));
+	}
+
+	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescription()
+	{
+		return {
+			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+			vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
+		};
+	}
+};
+
 
 class Graphics
 {
 public:
+
+    Graphics(
+        const vk::Device& dev,
+        const Present& present,
+        const uint32_t graphicsFamilyIndex,
+        const vk::PhysicalDevice& physicalDevice
+    );
+
+    Graphics();
+
     vk::UniqueCommandPool 					commandPool;
     vk::UniqueRenderPass 					renderPass;
     vk::UniquePipelineLayout 				pipelineLayout;

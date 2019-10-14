@@ -31,7 +31,7 @@ public:
 
     const uint32_t imageCount() const;
 
-    const vk::ImageView& view(const uint32_t idx);
+    const vk::ImageView& view(const uint32_t idx) const;
 
     vk::Result present(const vk::Semaphore& signal, const uint32_t& imageIndex);
 
@@ -41,11 +41,13 @@ public:
 
     void reset();
 
+    void release();
+
 private:
-    vk::SwapchainKHR            m_swapChain;
-    std::vector<vk::ImageView>  m_swapChainImageViews;
+    vk::Device                  m_device;
     vk::Queue                   m_queue;
+    vk::SwapchainKHR            m_swapChain;
     vk::Extent2D                m_swapChainExtent;
     vk::Format                  m_swapChainImageFormat;
-    vk::Device                  m_device;
+    std::vector<vk::ImageView>  m_swapChainImageViews;
 };

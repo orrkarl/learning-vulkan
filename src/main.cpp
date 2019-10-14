@@ -73,25 +73,6 @@ private:
 	const char *m_extensionName;
 };
 
-struct Vertex
-{
-	glm::vec2 pos;
-	glm::vec3 color;
-
-	static vk::VertexInputBindingDescription getBindingDescription()
-	{
-		return vk::VertexInputBindingDescription(0, sizeof(Vertex));
-	}
-
-	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescription()
-	{
-		return {
-			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
-			vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
-		};
-	}
-};
-
 const std::array<Vertex, 4> g_vertecies
 {
     Vertex{ {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
