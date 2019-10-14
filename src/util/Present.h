@@ -15,6 +15,16 @@ public:
 
     Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface, GLFWwindow* window);
 
+    Present(const Present& other) = delete;
+
+    Present(Present&& other);
+
+    ~Present();
+
+    Present& operator=(const Present& other) = delete;
+
+    Present& operator=(Present&& other);
+
     vk::Extent2D extent() const;
 
     vk::Format format() const;
@@ -29,11 +39,13 @@ public:
 
     void await();
 
+    void reset();
+
 private:
-    vk::UniqueSwapchainKHR  			m_swapChain;
-    std::vector<vk::UniqueImageView> 	m_swapChainImageViews;
-    vk::Queue 	 						m_queue;
-    vk::Extent2D 						m_swapChainExtent;
-    vk::Format   						m_swapChainImageFormat;
-    vk::Device                          m_device;
+    vk::SwapchainKHR            m_swapChain;
+    std::vector<vk::ImageView>  m_swapChainImageViews;
+    vk::Queue                   m_queue;
+    vk::Extent2D                m_swapChainExtent;
+    vk::Format                  m_swapChainImageFormat;
+    vk::Device                  m_device;
 };
