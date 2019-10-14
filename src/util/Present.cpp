@@ -6,7 +6,6 @@
 #include "QueueFamilyIndices.h"
 
 Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface, GLFWwindow* window)
-    : m_device(dev)
 {
     auto support = SwapChainSupportDetails(physicalDevice, surface);
 
@@ -48,11 +47,11 @@ Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice
     chainInfo.clipped = VK_TRUE;
     chainInfo.oldSwapchain = vk::SwapchainKHR();
 
-    m_swapChain = m_device.createSwapchainKHRUnique(chainInfo);
+    m_swapChain = dev.createSwapchainKHRUnique(chainInfo);
     m_swapChainExtent = extent;
     m_swapChainImageFormat = format.format;
 
-    auto m_swapChainImages = m_device.getSwapchainImagesKHR(m_swapChain.get());
+    auto m_swapChainImages = dev.getSwapchainImagesKHR(m_swapChain.get());
 
     vk::ImageViewCreateInfo createInfo(
         vk::ImageViewCreateFlags(),
@@ -73,10 +72,10 @@ Present::Present(const vk::Device& dev, const vk::PhysicalDevice& physicalDevice
     for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
     {
         createInfo.image = m_swapChainImages[i];
-        m_swapChainImageViews[i] = m_device.createImageViewUnique(createInfo);
+        m_swapChainImageViews[i] = dev.createImageViewUnique(createInfo);
     }
 
-    m_queue = m_device.getQueue(indices.present(), 0);
+    m_queue = dev.getQueue(indices.present(), 0);
 }
 
 Present::Present()
@@ -104,7 +103,6 @@ std::ostream& operator<<(std::ostream& os, const Present& self)
     os << ']';
 
     os << ", Queue: " << self.m_queue;
-    os << ", Device: " << self.m_device;
 
     return os;
 }

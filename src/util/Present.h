@@ -33,5 +33,4 @@ private:
     vk::Queue 	 						m_queue;
     vk::Extent2D 						m_swapChainExtent;
     vk::Format   						m_swapChainImageFormat;
-    vk::Device                          m_device;
 };
