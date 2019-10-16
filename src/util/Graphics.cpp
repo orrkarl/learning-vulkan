@@ -21,10 +21,94 @@ Graphics::Graphics(
     const Present& present,
     const uint32_t graphicsFamilyIndex,
     const vk::PhysicalDevice& physicalDevice)
-    : m_device(dev)
+    : m_device(dev), m_physicalDevice(physicalDevice), m_projection(1.0f)
 {
     queue = dev.getQueue(graphicsFamilyIndex, 0);
 
+    createRenderPass(present);
+
+    vk::DescriptorSetLayoutBinding mvpLayoutBinding(
+        0, 
+        vk::DescriptorType::eUniformBuffer, 
+        1, 
+        vk::ShaderStageFlagBits::eVertex
+    );
+
+    descriptorSetLayout = dev.createDescriptorSetLayoutUnique(
+        vk::DescriptorSetLayoutCreateInfo(
+            vk::DescriptorSetLayoutCreateFlags(), 
+            1, &mvpLayoutBinding
+        )
+    );
+
+    createGraphicsPipeline(present);
+    createFramebuffers(present);
+
+    vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), graphicsFamilyIndex);
+    commandPool = dev.createCommandPoolUnique(commandPoolInfo);
+
+    deviceVertecies = createStagedBuffer(physicalDevice, g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    deviceIndices = createStagedBuffer(physicalDevice, g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+    createUniformBuffers(present);
+    createDescriptorPool(present);
+    createDescriptorSets(present);
+    createCommandBuffers(present);
+
+    m_projection = glm::perspective(glm::radians(45.0f), present.extent().width / static_cast<float>(present.extent().height), 0.1f, 10.0f);
+    m_projection[1][1] *= -1;   
+}
+
+Graphics::Graphics()
+{
+
+}
+
+void Graphics::render(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify, const uint32_t& imageIndex)
+{
+    updateData(imageIndex);
+
+    const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+    const vk::SubmitInfo submitInfo(1, &wait, &waitStage, 1, &commandBuffers[imageIndex].get(), 1, &signal);
+
+    queue.submit({ submitInfo }, hostNotify);
+}
+
+
+void Graphics::update(const Present& present)
+{
+    createRenderPass(present);
+    createGraphicsPipeline(present);
+    createFramebuffers(present);
+    createUniformBuffers(present);
+    createDescriptorPool(present);
+    createDescriptorSets(present);
+    createCommandBuffers(present);
+
+    m_projection = glm::perspective(glm::radians(45.0f), present.extent().width / static_cast<float>(present.extent().height), 0.1f, 10.0f);
+	m_projection[1][1] *= -1;
+}
+
+void Graphics::updateData(const uint32_t& imageIndex)
+{
+    static const auto initTime = std::chrono::high_resolution_clock::now();
+
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - initTime).count();
+
+    auto model = glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    auto view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    auto transform = mkTransform(model, view, m_projection);
+
+    void* data = m_device.mapMemory(uniforms[imageIndex].memory(), 0, sizeof(MVPTransform));
+    memcpy(data, &transform, sizeof(transform));
+    m_device.unmapMemory(uniforms[imageIndex].memory());
+}
+
+
+void Graphics::createRenderPass(const Present& present)
+{
     vk::AttachmentDescription color(
         vk::AttachmentDescriptionFlags(),
         present.format(),
@@ -56,26 +140,15 @@ Graphics::Graphics(
         1, &dependency
     );
 
-    renderPass = dev.createRenderPassUnique(renderPassInfo);
+    renderPass = m_device.createRenderPassUnique(renderPassInfo);
+}
 
-    vk::DescriptorSetLayoutBinding mvpLayoutBinding(
-        0, 
-        vk::DescriptorType::eUniformBuffer, 
-        1, 
-        vk::ShaderStageFlagBits::eVertex
-    );
-
-    descriptorSetLayout = dev.createDescriptorSetLayoutUnique(
-        vk::DescriptorSetLayoutCreateInfo(
-            vk::DescriptorSetLayoutCreateFlags(), 
-            1, &mvpLayoutBinding
-        )
-    );
-
+void Graphics::createGraphicsPipeline(const Present& present)
+{
     auto vertShaderCode = readFile("vert.spv");
     auto fragShaderCode = readFile("frag.spv");
 
-    auto fragShader = dev.createShaderModuleUnique(
+    auto fragShader = m_device.createShaderModuleUnique(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
             fragShaderCode.size(), 
@@ -83,7 +156,7 @@ Graphics::Graphics(
         )
     );
     
-    auto vertShader = dev.createShaderModuleUnique(
+    auto vertShader = m_device.createShaderModuleUnique(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
             vertShaderCode.size(), 
@@ -169,7 +242,7 @@ Graphics::Graphics(
     pipelineLayoutInfo.setSetLayoutCount(1);
     pipelineLayoutInfo.setPSetLayouts(&descriptorSetLayout.get());
 
-    pipelineLayout = dev.createPipelineLayoutUnique(pipelineLayoutInfo);
+    pipelineLayout = m_device.createPipelineLayoutUnique(pipelineLayoutInfo);
 
     vk::GraphicsPipelineCreateInfo graphicsInfo(
         vk::PipelineCreateFlags(),
@@ -187,8 +260,11 @@ Graphics::Graphics(
         renderPass.get()
     );
 
-    pipeline = dev.createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
+    pipeline = m_device.createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
+}
 
+void Graphics::createFramebuffers(const Present& present)
+{
     frameBuffers.resize(present.imageCount());
 
     vk::FramebufferCreateInfo framebufferInfo(
@@ -202,35 +278,38 @@ Graphics::Graphics(
     for (auto i = 0u; i < present.imageCount(); ++i)
     {
         framebufferInfo.pAttachments = &present.view(i);
-        frameBuffers[i] = dev.createFramebufferUnique(framebufferInfo);
+        frameBuffers[i] = m_device.createFramebufferUnique(framebufferInfo);
     }
+}
 
-    vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), graphicsFamilyIndex);
-    commandPool = dev.createCommandPoolUnique(commandPoolInfo);
-
-    deviceVertecies = createStagedBuffer(physicalDevice, g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    deviceIndices = createStagedBuffer(physicalDevice, g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-
+void Graphics::createUniformBuffers(const Present& present)
+{
     uniforms.resize(present.imageCount());
 
     auto bufferSize = sizeof(MVPTransform);
     for (auto i = 0; i < uniforms.size(); ++i)
     {
         uniforms[i] = BoundedBuffer(
-            physicalDevice, dev, 
+            m_physicalDevice, m_device, 
             bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, 
             vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
         );
     }
+}
 
+void Graphics::createDescriptorPool(const Present& present)
+{
     vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, present.imageCount());
     vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), present.imageCount(), 1, &poolSize);
 
-    descriptorPool = dev.createDescriptorPoolUnique(poolInfo);
+    descriptorPool = m_device.createDescriptorPoolUnique(poolInfo);
+}
 
+void Graphics::createDescriptorSets(const Present& present)
+{
     const std::vector<vk::DescriptorSetLayout> layouts(present.imageCount(), *descriptorSetLayout);
     vk::DescriptorSetAllocateInfo allocInfo(*descriptorPool, layouts.size(), layouts.data());
-    descriptorSets = dev.allocateDescriptorSets(allocInfo);
+    descriptorSets = m_device.allocateDescriptorSets(allocInfo);
 
     vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
     vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
@@ -239,16 +318,19 @@ Graphics::Graphics(
         bufferInfo.setBuffer(uniforms[i].buffer());
         descriptorWrite.setDstSet(descriptorSets[i]);
 
-        dev.updateDescriptorSets({descriptorWrite}, {});
+        m_device.updateDescriptorSets({descriptorWrite}, {});
     }
+}
 
+void Graphics::createCommandBuffers(const Present& present)
+{
     vk::CommandBufferAllocateInfo commandBufferAllocInfo(
         commandPool.get(), 
         vk::CommandBufferLevel::ePrimary, 
         static_cast<uint32_t>(present.imageCount())
     );
 
-    commandBuffers = dev.allocateCommandBuffersUnique(commandBufferAllocInfo);
+    commandBuffers = m_device.allocateCommandBuffersUnique(commandBufferAllocInfo);
 
     vk::CommandBufferBeginInfo commandBufferBegin{};
 
@@ -277,34 +359,6 @@ Graphics::Graphics(
             commandBuffers[i]->endRenderPass();
         commandBuffers[i]->end();
     }
-
-    m_projection = glm::perspective(glm::radians(45.0f), present.extent().width / static_cast<float>(present.extent().height), 0.1f, 10.0f);
-    m_projection[1][1] *= -1;   
-}
-
-Graphics::Graphics()
-{
-
 }
 
 
-template <class Container>
-BoundedBuffer Graphics::createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties){
-    auto size = sizeof(hostData[0]) * hostData.size();
-
-    auto stagingBuffer = BoundedBuffer(
-        physicalDevice, m_device, 
-        hostData, vk::BufferUsageFlagBits::eTransferSrc, 
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-    );
-
-    auto ret = BoundedBuffer(
-        physicalDevice, m_device,
-        size, usage | vk::BufferUsageFlagBits::eTransferDst,
-        properties 
-    );
-
-    copyBuffer(m_device, queue, *commandPool, stagingBuffer.buffer(), ret.buffer(), size);
-
-    return ret;
-}

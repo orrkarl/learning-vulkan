@@ -264,246 +264,9 @@ private:
 		m_computeQueue = m_device->getQueue(indices.compute(), 0);
 	}
 
-	void createSwapChain()
+	void createPresent()
 	{
 		m_present = Present(*m_device, m_physicalDevice, *m_renderSurface, m_window);
-		m_graphics.notifySwapchainUpdated(m_present.extent());
-	}
-
-	vk::UniqueShaderModule createShaderModule(const std::vector<char> &code)
-	{
-		vk::ShaderModuleCreateInfo shaderInfo(
-			vk::ShaderModuleCreateFlags(),
-			code.size(), 
-			reinterpret_cast<const uint32_t *>(code.data())
-		);
-
-		return m_device->createShaderModuleUnique(shaderInfo);
-	}
-
-	void createRenderPass()
-	{
-		vk::AttachmentDescription color(
-			vk::AttachmentDescriptionFlags(),
-			m_present.format(),
-			vk::SampleCountFlagBits::e1,
-			vk::AttachmentLoadOp::eClear,
-			vk::AttachmentStoreOp::eStore,
-			vk::AttachmentLoadOp::eDontCare,
-			vk::AttachmentStoreOp::eDontCare,
-			vk::ImageLayout::eUndefined,
-			vk::ImageLayout::ePresentSrcKHR
-		);
-
-		vk::AttachmentReference colorRef(0, vk::ImageLayout::eColorAttachmentOptimal);
-
-		vk::SubpassDescription subpassDesc;
-		subpassDesc.colorAttachmentCount = 1;
-		subpassDesc.pColorAttachments = &colorRef;
-
-		vk::SubpassDependency dependency(
-			VK_SUBPASS_EXTERNAL, 0,
-			vk::PipelineStageFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput), vk::PipelineStageFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
-			vk::AccessFlags(), vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite
-		);
-
-		vk::RenderPassCreateInfo renderPassInfo(
-			vk::RenderPassCreateFlags(),
-			1, &color,
-			1, &subpassDesc,
-			1, &dependency
-		);
-
-		m_graphics.renderPass = m_device->createRenderPassUnique(renderPassInfo);
-	}
-
-	void createDescriptorSetLayout()
-	{
-		vk::DescriptorSetLayoutBinding mvpLayoutBinding(
-			0, 
-			vk::DescriptorType::eUniformBuffer, 
-			1, 
-			vk::ShaderStageFlagBits::eVertex
-		);
-
-		m_graphics.descriptorSetLayout = m_device->createDescriptorSetLayoutUnique(
-			vk::DescriptorSetLayoutCreateInfo(
-				vk::DescriptorSetLayoutCreateFlags(), 
-				1, &mvpLayoutBinding
-			)
-		);
-	}
-
-	void createGraphicsPipeline()
-	{
-		auto vertShaderCode = readFile("vert.spv");
-		auto fragShaderCode = readFile("frag.spv");
-
-		auto fragShader = createShaderModule(fragShaderCode);
-		auto vertShader = createShaderModule(vertShaderCode);
-
-		vk::PipelineShaderStageCreateInfo vertInfo(
-			vk::PipelineShaderStageCreateFlags(), 
-			vk::ShaderStageFlagBits::eVertex, 
-			vertShader.get(), 
-			"main"
-		);
-
-		vk::PipelineShaderStageCreateInfo fragInfo(
-			vk::PipelineShaderStageCreateFlags(), 
-			vk::ShaderStageFlagBits::eFragment, 
-			fragShader.get(), 
-			"main"
-		);
-
-		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
-
-		auto bindingDesc = Vertex::getBindingDescription();
-		auto attributeDesc = Vertex::getAttributeDescription();
-
-		vk::PipelineVertexInputStateCreateInfo vertexInput(
-			vk::PipelineVertexInputStateCreateFlags(),
-			1, &bindingDesc,
-			attributeDesc.size(), attributeDesc.data()
-		);
-
-		vk::PipelineInputAssemblyStateCreateInfo inputAssembly(
-			vk::PipelineInputAssemblyStateCreateFlags(),
-			vk::PrimitiveTopology::eTriangleList,
-			VK_FALSE
-		);
-
-		vk::Viewport viewport(
-			0, 0, 
-			static_cast<float>(m_present.extent().width), static_cast<float>(m_present.extent().height),
-			0.0f, 1.0f
-		);
-
-		vk::Rect2D scissor(
-			vk::Offset2D(0, 0), 
-			m_present.extent()
-		);
-
-		vk::PipelineViewportStateCreateInfo viewportState(
-			vk::PipelineViewportStateCreateFlags(), 
-			1, &viewport, 
-			1, &scissor
-		);
-
-		vk::PipelineRasterizationStateCreateInfo rasterizerState(
-			vk::PipelineRasterizationStateCreateFlags(),
-			VK_FALSE,
-			VK_FALSE,
-			vk::PolygonMode::eFill,
-			vk::CullModeFlagBits::eBack,
-			vk::FrontFace::eCounterClockwise,
-			VK_FALSE,
-			0.0f, 0.0f, 0.0f,
-			1.0f
-		);
-
-		vk::PipelineMultisampleStateCreateInfo multisamplingState;
-
-		vk::PipelineColorBlendAttachmentState colorBlendAttachment;
-		colorBlendAttachment.setColorWriteMask(
-			vk::ColorComponentFlagBits::eR | 
-			vk::ColorComponentFlagBits::eG | 
-			vk::ColorComponentFlagBits::eB | 
-			vk::ColorComponentFlagBits::eA  
-		);
-
-		vk::PipelineColorBlendStateCreateInfo colorBlending;
-		colorBlending.setAttachmentCount(1);
-		colorBlending.setPAttachments(&colorBlendAttachment);
-
-		vk::PipelineLayoutCreateInfo pipelineLayoutInfo;
-		pipelineLayoutInfo.setSetLayoutCount(1);
-		pipelineLayoutInfo.setPSetLayouts(&m_graphics.descriptorSetLayout.get());
-
-		m_graphics.pipelineLayout = m_device->createPipelineLayoutUnique(pipelineLayoutInfo);
-
-		vk::GraphicsPipelineCreateInfo graphicsInfo(
-			vk::PipelineCreateFlags(),
-			2, shaderStages,
-			&vertexInput,
-			&inputAssembly,
-			nullptr,
-			&viewportState,
-			&rasterizerState,
-			&multisamplingState,
-			nullptr,
-			&colorBlending,
-			nullptr,
-			m_graphics.pipelineLayout.get(),
-			m_graphics.renderPass.get()
-		);
-
-		m_graphics.pipeline = m_device->createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
-	}
-
-	void createFramebuffers()
-	{
-		m_graphics.frameBuffers.resize(m_present.imageCount());
-
-		vk::FramebufferCreateInfo framebufferInfo(
-			vk::FramebufferCreateFlags(), 
-			m_graphics.renderPass.get(), 
-			1, nullptr, 
-			m_present.extent().width, m_present.extent().height, 
-			1
-		);
-
-		for (auto i = 0u; i < m_present.imageCount(); ++i)
-		{
-			framebufferInfo.pAttachments = &m_present.view(i);
-			m_graphics.frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
-		}
-	}
-
-	void createCommandPool()
-	{
-		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
-		vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), indices.graphics());
-		m_graphics.commandPool = m_device->createCommandPoolUnique(commandPoolInfo);
-	}
-
-	void createCommandBuffers()
-	{
-		vk::CommandBufferAllocateInfo allocInfo(
-			m_graphics.commandPool.get(), 
-			vk::CommandBufferLevel::ePrimary, 
-			static_cast<uint32_t>(m_present.imageCount())
-		);
-
-		m_graphics.commandBuffers = m_device->allocateCommandBuffersUnique(allocInfo);
-
-		vk::CommandBufferBeginInfo commandBufferBegin{};
-
-		vk::Buffer vertexBuffers[] = { m_graphics.deviceVertecies.buffer() };
-		vk::DeviceSize vertexOffsets[] = { 0 };
-
-		vk::RenderPassBeginInfo renderPassBegin;
-		renderPassBegin.renderPass = m_graphics.renderPass.get();
-		renderPassBegin.renderArea.offset = vk::Offset2D(0, 0);
-		renderPassBegin.renderArea.extent = m_present.extent();
-		vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
-		renderPassBegin.clearValueCount = 1;
-		renderPassBegin.pClearValues = &clearColor;
-
-		for (auto i = 0u; i < m_present.imageCount(); ++i)
-		{
-			renderPassBegin.framebuffer = m_graphics.frameBuffers[i].get();
-
-			m_graphics.commandBuffers[i]->begin(commandBufferBegin);
-				m_graphics.commandBuffers[i]->beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
-				m_graphics.commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics.pipeline.get());
-				m_graphics.commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
-				m_graphics.commandBuffers[i]->bindIndexBuffer(m_graphics.deviceIndices.buffer(), 0, vk::IndexType::eUint16);
-				m_graphics.commandBuffers[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_graphics.pipelineLayout, 0, {m_graphics.descriptorSets[i]}, {});
-				m_graphics.commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
-				m_graphics.commandBuffers[i]->endRenderPass();
-			m_graphics.commandBuffers[i]->end();
-		}
 	}
 
 	void createSyncObjects()
@@ -525,7 +288,7 @@ private:
 		}
 	}
 
-	void recreateSwapchain()
+	void recreatePresent()
 	{
 		int w = 0, h = 0;
 		while (w == 0 and h == 0)
@@ -536,142 +299,14 @@ private:
 
 		m_device->waitIdle();
 
-		m_graphics.commandBuffers.clear();
-		m_graphics.descriptorPool.reset();
-		m_graphics.uniforms.clear();
-		m_graphics.frameBuffers.clear();
-		m_graphics.pipeline.reset();
-		m_graphics.renderPass.reset();
-
-		createSwapChain();
-		createRenderPass();
-		createGraphicsPipeline();
-		createFramebuffers();
-		createUniformBuffers();
-		createDescriptorPool();
-		createDescriptorSets();
-		createCommandBuffers();
-	}
-
-	void copyBuffer(const vk::Buffer& src, const vk::Buffer& dest, const vk::DeviceSize& size)
-	{
-		auto copyCommand = vk::UniqueCommandBuffer(
-			m_device->allocateCommandBuffers(
-				vk::CommandBufferAllocateInfo(
-					*m_graphics.commandPool,
-					vk::CommandBufferLevel::ePrimary,
-					1
-				)
-			)[0],
-			vk::PoolFree(
-				*m_device, 
-				*m_graphics.commandPool, 
-				vk::DispatchLoaderStatic()
-			)
-		);
-
-		copyCommand->begin(
-			vk::CommandBufferBeginInfo(
-				vk::CommandBufferUsageFlagBits::eOneTimeSubmit
-			)
-		);
-		copyCommand->copyBuffer(src, dest, { vk::BufferCopy(0, 0, size) });
-		copyCommand->end();
-
-		auto copyFence = m_device->createFenceUnique(vk::FenceCreateInfo());
-		vk::SubmitInfo submitInfo;
-		submitInfo.setCommandBufferCount(1);
-		submitInfo.setPCommandBuffers(&copyCommand.get());
-		m_graphics.queue.submit(1, &submitInfo, *copyFence);
-
-		m_device->waitForFences(1, &copyFence.get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
-	}
-
-	template <class Container>
-	BoundedBuffer createStagedBuffer(const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties)
-	{
-		auto size = sizeof(hostData[0]) * hostData.size();
-
-		auto stagingBuffer = BoundedBuffer(
-			m_physicalDevice, *m_device, 
-			hostData, vk::BufferUsageFlagBits::eTransferSrc, 
-			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-		);
-
-		auto ret = BoundedBuffer(
-			m_physicalDevice, *m_device,
-			size, usage | vk::BufferUsageFlagBits::eTransferDst,
-			properties 
-		);
-
-		copyBuffer(stagingBuffer.buffer(), ret.buffer(), size);
-
-		return ret;
-	}
-
-	void createVertexBuffers()
-	{
-		m_graphics.deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		m_graphics.deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-	}
-
-	void createUniformBuffers()
-	{
-		m_graphics.uniforms.resize(m_present.imageCount());
-
-		auto bufferSize = sizeof(MVPTransform);
-		for (auto i = 0; i < m_graphics.uniforms.size(); ++i)
-		{
-			m_graphics.uniforms[i] = BoundedBuffer(
-				m_physicalDevice, *m_device, 
-				bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, 
-				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
-			);
-		}
-	}
-
-	void createDescriptorPool()
-	{
-		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_present.imageCount());
-		vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_present.imageCount(), 1, &poolSize);
-
-		m_graphics.descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
-	}
-
-	void createDescriptorSets()
-	{
-		const std::vector<vk::DescriptorSetLayout> layouts(m_present.imageCount(), *m_graphics.descriptorSetLayout);
-		vk::DescriptorSetAllocateInfo allocInfo(*m_graphics.descriptorPool, layouts.size(), layouts.data());
-		m_graphics.descriptorSets = m_device->allocateDescriptorSets(allocInfo);
-
-		vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
-		vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
-		for (auto i = 0u; i < m_present.imageCount(); ++i)
-		{
-			bufferInfo.setBuffer(m_graphics.uniforms[i].buffer());
-			descriptorWrite.setDstSet(m_graphics.descriptorSets[i]);
-
-			m_device->updateDescriptorSets({descriptorWrite}, {});
-		}
+		createPresent();
+		m_graphics.update(m_present);
 	}
 
 	void createGraphics()
 	{
 		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
-
 		m_graphics = Graphics(*m_device, m_present, indices.graphics(), m_physicalDevice);
-		// m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
-		// m_graphics.setDevice(*m_device);
-		// createRenderPass();
-		// createDescriptorSetLayout();
-		// createGraphicsPipeline();
-		// createFramebuffers();
-		// createCommandPool();
-		// createVertexBuffers();
-		// createUniformBuffers();
-		// createDescriptorPool();
-		// createDescriptorSets();
-		// createCommandBuffers();
 	}
 
 	void initVulkan()
@@ -685,7 +320,7 @@ private:
 		pickPhysicalDevice();
 		createLogicalDevice();
 
-		createSwapChain();
+		createPresent();
 		createGraphics();
 		createSyncObjects();
 	}
@@ -696,7 +331,7 @@ private:
 		auto status = m_present.acquireNextImage(wait, imageIndex);
 		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
-			recreateSwapchain();
+			recreatePresent();
 			return acquireNextImage(wait);
 		}
 		
@@ -721,7 +356,7 @@ private:
 		
 		if (status == vk::Result::eErrorOutOfDateKHR or status == vk::Result::eSuboptimalKHR)
 		{
-			recreateSwapchain();
+			recreatePresent();
 		}
 		else if (status != vk::Result::eSuccess)
 		{

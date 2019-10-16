@@ -9,6 +9,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "BoundedBuffer.h"
+#include "general.h"
 #include "MVPTransform.h"
 #include "Present.h"
 
@@ -59,15 +60,7 @@ public:
     std::vector<BoundedBuffer>			    uniforms;
     vk::Queue 								queue;
 
-    void render(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify, const uint32_t& imageIndex)
-    {
-        update(imageIndex);
-
-        const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		const vk::SubmitInfo submitInfo(1, &wait, &waitStage, 1, &commandBuffers[imageIndex].get(), 1, &signal);
-
-		queue.submit({ submitInfo }, hostNotify);
-    }
+    void render(const vk::Semaphore& wait, const vk::Semaphore& signal, const vk::Fence& hostNotify, const uint32_t& imageIndex);
 
     void notifySwapchainUpdated(const vk::Extent2D& extent)
     {
@@ -75,33 +68,53 @@ public:
 		m_projection[1][1] *= -1;
     }
 
+    void update(const Present& present);
+
     void setDevice(const vk::Device& dev)
     {
         m_device = dev;
     }
 
 private:
-	void update(const uint32_t& imageIndex)
-	{
-		static const auto initTime = std::chrono::high_resolution_clock::now();
-
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - initTime).count();
-
-		auto model = glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		auto view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-		auto transform = mkTransform(model, view, m_projection);
-
-		void* data = m_device.mapMemory(uniforms[imageIndex].memory(), 0, sizeof(MVPTransform));
-		memcpy(data, &transform, sizeof(transform));
-		m_device.unmapMemory(uniforms[imageIndex].memory());
-	}
+	void updateData(const uint32_t& imageIndex);
 
     template <class Container>
-    BoundedBuffer createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties);
+    BoundedBuffer createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties)
+    {
+        auto size = sizeof(hostData[0]) * hostData.size();
 
+        auto stagingBuffer = BoundedBuffer(
+            physicalDevice, m_device, 
+            hostData, vk::BufferUsageFlagBits::eTransferSrc, 
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        );
 
+        auto ret = BoundedBuffer(
+            physicalDevice, m_device,
+            size, usage | vk::BufferUsageFlagBits::eTransferDst,
+            properties 
+        );
+
+        copyBuffer(m_device, queue, *commandPool, stagingBuffer.buffer(), ret.buffer(), size);
+
+        return ret;
+    }
+
+	void createRenderPass(const Present& present);
+
+    void createGraphicsPipeline(const Present& present);
+
+    void createFramebuffers(const Present& present);
+
+    void createUniformBuffers(const Present& present);
+
+    void createDescriptorPool(const Present& present);
+
+    void createDescriptorSets(const Present& present);
+
+    void createCommandBuffers(const Present& present);
+    
     glm::mat4 m_projection;
     vk::Device m_device;
+    vk::PhysicalDevice m_physicalDevice;
 };
