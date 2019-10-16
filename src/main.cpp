@@ -262,9 +262,6 @@ private:
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
 
 		m_computeQueue = m_device->getQueue(indices.compute(), 0);
-		m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
-
-		m_graphics.setDevice(*m_device);
 	}
 
 	void createSwapChain()
@@ -658,6 +655,25 @@ private:
 		}
 	}
 
+	void createGraphics()
+	{
+		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
+
+		m_graphics = Graphics(*m_device, m_present, indices.graphics(), m_physicalDevice);
+		// m_graphics.queue = m_device->getQueue(indices.graphics(), 0);
+		// m_graphics.setDevice(*m_device);
+		// createRenderPass();
+		// createDescriptorSetLayout();
+		// createGraphicsPipeline();
+		// createFramebuffers();
+		// createCommandPool();
+		// createVertexBuffers();
+		// createUniformBuffers();
+		// createDescriptorPool();
+		// createDescriptorSets();
+		// createCommandBuffers();
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -668,17 +684,9 @@ private:
 		createRenderSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+
 		createSwapChain();
-		createRenderPass();
-		createDescriptorSetLayout();
-		createGraphicsPipeline();
-		createFramebuffers();
-		createCommandPool();
-		createVertexBuffers();
-		createUniformBuffers();
-		createDescriptorPool();
-		createDescriptorSets();
-		createCommandBuffers();
+		createGraphics();
 		createSyncObjects();
 	}
 

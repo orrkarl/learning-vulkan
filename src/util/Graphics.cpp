@@ -16,28 +16,6 @@ const std::array<uint16_t, 6> g_indices
 	0, 1, 2, 2, 3, 0
 };
 
-template <class Container>
-BoundedBuffer createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const vk::Device& dev, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties)
-{
-    auto size = sizeof(hostData[0]) * hostData.size();
-
-    auto stagingBuffer = BoundedBuffer(
-        physicalDevice, dev, 
-        hostData, vk::BufferUsageFlagBits::eTransferSrc, 
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-    );
-
-    auto ret = BoundedBuffer(
-        physicalDevice, dev,
-        size, usage | vk::BufferUsageFlagBits::eTransferDst,
-        properties 
-    );
-
-    copyBuffer(dev, physicalDstagingBuffer.buffer(), ret.buffer(), size);
-
-    return ret;
-}
-
 Graphics::Graphics(
     const vk::Device& dev,
     const Present& present,
@@ -45,6 +23,8 @@ Graphics::Graphics(
     const vk::PhysicalDevice& physicalDevice)
     : m_device(dev)
 {
+    queue = dev.getQueue(graphicsFamilyIndex, 0);
+
     vk::AttachmentDescription color(
         vk::AttachmentDescriptionFlags(),
         present.format(),
@@ -228,8 +208,8 @@ Graphics::Graphics(
     vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), graphicsFamilyIndex);
     commandPool = dev.createCommandPoolUnique(commandPoolInfo);
 
-    deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    deviceVertecies = createStagedBuffer(physicalDevice, g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    deviceIndices = createStagedBuffer(physicalDevice, g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
     uniforms.resize(present.imageCount());
 
@@ -262,13 +242,13 @@ Graphics::Graphics(
         dev.updateDescriptorSets({descriptorWrite}, {});
     }
 
-    vk::CommandBufferAllocateInfo allocInfo(
+    vk::CommandBufferAllocateInfo commandBufferAllocInfo(
         commandPool.get(), 
         vk::CommandBufferLevel::ePrimary, 
         static_cast<uint32_t>(present.imageCount())
     );
 
-    commandBuffers = dev.allocateCommandBuffersUnique(allocInfo);
+    commandBuffers = dev.allocateCommandBuffersUnique(commandBufferAllocInfo);
 
     vk::CommandBufferBeginInfo commandBufferBegin{};
 
@@ -296,10 +276,35 @@ Graphics::Graphics(
             commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
             commandBuffers[i]->endRenderPass();
         commandBuffers[i]->end();
-    }   
+    }
+
+    m_projection = glm::perspective(glm::radians(45.0f), present.extent().width / static_cast<float>(present.extent().height), 0.1f, 10.0f);
+    m_projection[1][1] *= -1;   
 }
 
 Graphics::Graphics()
 {
 
+}
+
+
+template <class Container>
+BoundedBuffer Graphics::createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties){
+    auto size = sizeof(hostData[0]) * hostData.size();
+
+    auto stagingBuffer = BoundedBuffer(
+        physicalDevice, m_device, 
+        hostData, vk::BufferUsageFlagBits::eTransferSrc, 
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+
+    auto ret = BoundedBuffer(
+        physicalDevice, m_device,
+        size, usage | vk::BufferUsageFlagBits::eTransferDst,
+        properties 
+    );
+
+    copyBuffer(m_device, queue, *commandPool, stagingBuffer.buffer(), ret.buffer(), size);
+
+    return ret;
 }

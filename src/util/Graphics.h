@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <ostream>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -96,6 +97,10 @@ private:
 		memcpy(data, &transform, sizeof(transform));
 		m_device.unmapMemory(uniforms[imageIndex].memory());
 	}
+
+    template <class Container>
+    BoundedBuffer createStagedBuffer(const vk::PhysicalDevice& physicalDevice, const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties);
+
 
     glm::mat4 m_projection;
     vk::Device m_device;
