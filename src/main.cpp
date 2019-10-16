@@ -311,15 +311,17 @@ private:
 
 	void initVulkan()
 	{
+		// basic vulkan library initialization
 		createInstance();
-		
 		checkValidationLayerSupport();
 		setupDebugMessenger();
 		
+		// vulkan device interface initialization
 		createRenderSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
 
+		// queues and operations
 		createPresent();
 		createGraphics();
 		createSyncObjects();

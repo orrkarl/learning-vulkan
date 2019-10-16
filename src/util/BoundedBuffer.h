@@ -36,6 +36,8 @@ public:
 
     void reset();
 
+    void release();
+
 private:
     vk::UniqueBuffer m_buffer;
     vk::UniqueDeviceMemory m_memory;
