@@ -378,7 +378,7 @@ private:
 			glfwPollEvents();
 		}
 
-		m_graphics.queue.waitIdle();
+		m_graphics.await();
 		m_present.await();
 	}
 

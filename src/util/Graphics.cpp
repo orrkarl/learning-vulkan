@@ -89,6 +89,11 @@ void Graphics::update(const Present& present)
 	m_projection[1][1] *= -1;
 }
 
+void Graphics::await()
+{
+    queue.waitIdle();
+}
+
 void Graphics::updateData(const uint32_t& imageIndex)
 {
     static const auto initTime = std::chrono::high_resolution_clock::now();
