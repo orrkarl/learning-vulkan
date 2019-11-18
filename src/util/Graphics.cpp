@@ -134,9 +134,6 @@ void Graphics::update(const Present& present)
         uniform.release();
     }
     uniforms.clear();
-
-    deviceIndices.release();
-    deviceVertecies.release();
     
     if (descriptorPool) m_device.destroyDescriptorPool(descriptorPool);
     

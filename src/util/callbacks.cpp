@@ -25,18 +25,20 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	switch(severity)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			std::cout << "INFO: " << data->pMessage << '\n';
+			std::cout << "INFO:" << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			std::cout << "VERBOSE: " << data->pMessage << '\n';
+			std::cout << "VERBOSE:" << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			std::cerr << "WARNING: " << data->pMessage << '\n';
+			std::cerr << "WARNING:" << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			std::cerr << "ERROR: " << data->pMessage << '\n';
+			std::cerr << "ERROR:" << std::endl;
 			break;
 		default:
-			std::cerr << "UNKNOWN (" << severity << "):" << data->pMessage << '\n';
+			std::cerr << "UNKNOWN (" << severity << "):" << std::endl;
 	}
+	
+	std::cerr << '\t' << data->pMessageIdName << " - " << data->pMessage << std::endl;
 }
