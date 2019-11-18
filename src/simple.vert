@@ -14,4 +14,5 @@ void main()
 {
     gl_Position = uMVP.transform * vec4(iPosition, 0.0, 1.0);
     oFragColor = iColor;
+    gl_PointSize = 10;
 }

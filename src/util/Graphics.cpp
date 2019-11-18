@@ -314,7 +314,7 @@ void Graphics::createGraphicsPipeline(const Present& present)
 
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly(
         vk::PipelineInputAssemblyStateCreateFlags(),
-        vk::PrimitiveTopology::eTriangleList,
+        vk::PrimitiveTopology::ePointList,
         VK_FALSE
     );
 
