@@ -10,11 +10,6 @@ const std::array<Vertex, 4> g_vertecies
     Vertex{ {-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
 };
 
-const std::array<uint16_t, 6> g_indices
-{
-	0, 1, 2, 2, 3, 0
-};
-
 Graphics::Graphics(
     const vk::Device& dev,
     const Present& present,
@@ -47,7 +42,6 @@ Graphics::Graphics(
     commandPool = dev.createCommandPool(commandPoolInfo);
 
     deviceVertecies = createStagedBuffer(physicalDevice, g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    deviceIndices = createStagedBuffer(physicalDevice, g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
     createUniformBuffers(present);
     createDescriptorPool(present);
@@ -75,7 +69,6 @@ Graphics::Graphics(Graphics&& other)
     descriptorPool = other.descriptorPool;
     descriptorSets = other.descriptorSets;
     deviceVertecies = std::move(other.deviceVertecies);
-    deviceIndices = std::move(other.deviceIndices);
     uniforms = std::move(other.uniforms);
     queue = other.queue;
     m_projection = other.m_projection;
@@ -105,7 +98,6 @@ Graphics& Graphics::operator=(Graphics&& other)
     descriptorPool = other.descriptorPool;
     descriptorSets = other.descriptorSets;
     deviceVertecies = std::move(other.deviceVertecies);
-    deviceIndices = std::move(other.deviceIndices);
     uniforms = std::move(other.uniforms);
     queue = other.queue;
     m_projection = other.m_projection;
@@ -181,7 +173,6 @@ void Graphics::reset()
     descriptorPool = vk::DescriptorPool();
     descriptorSets.clear();
     deviceVertecies.reset();
-    deviceIndices.reset();
     uniforms.clear();
     queue = vk::Queue();
     m_projection = glm::mat4(1.0f);
@@ -197,7 +188,6 @@ void Graphics::release()
     }
     uniforms.clear();
 
-    deviceIndices.release();
     deviceVertecies.release();
     
     if (descriptorPool) m_device.destroyDescriptorPool(descriptorPool);
@@ -486,9 +476,8 @@ void Graphics::createCommandBuffers(const Present& present)
             commandBuffers[i].beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
             commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
             commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
-            commandBuffers[i].bindIndexBuffer(deviceIndices.buffer(), 0, vk::IndexType::eUint16);
             commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, {descriptorSets[i]}, {});
-            commandBuffers[i].drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
+            commandBuffers[i].draw(3, 1, 0, 0);
             commandBuffers[i].endRenderPass();
         commandBuffers[i].end();
     }

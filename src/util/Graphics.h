@@ -115,7 +115,6 @@ private:
     vk::DescriptorPool				descriptorPool;
     std::vector<vk::DescriptorSet> 	descriptorSets;
     BoundedBuffer					deviceVertecies;
-    BoundedBuffer					deviceIndices;
     std::vector<BoundedBuffer>		uniforms;
     vk::Queue 						queue;
     glm::mat4                       m_projection;
