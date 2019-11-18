@@ -1,6 +1,7 @@
 #include "callbacks.h"
 
 #include <iostream>
+#include <iomanip>
 #include <stdexcept>
 
 void onKeyPress(GLFWwindow* window, const int key, const int scancode, const int action, const int mods)
@@ -25,20 +26,18 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	switch(severity)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			std::cout << "INFO:" << std::endl;
+			std::cout << std::setw(10) << std::left << "INFO:" << data->pMessage << " (" << data->pMessageIdName << ')' << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			std::cout << "VERBOSE:" << std::endl;
+			std::cout << std::setw(10) << std::left << "VERBOSE:" << data->pMessage << " (" << data->pMessageIdName << ')' << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			std::cerr << "WARNING:" << std::endl;
+			std::cerr << std::setw(10) << std::left << "WARNING:" << data->pMessage << " (" << data->pMessageIdName << ')' << std::endl;
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			std::cerr << "ERROR:" << std::endl;
+			std::cerr << std::setw(10) << std::left << "ERROR:" << data->pMessage << " (" << data->pMessageIdName << ')' << std::endl;
 			break;
 		default:
-			std::cerr << "UNKNOWN (" << severity << "):" << std::endl;
+			std::cerr << "UNKNOWN (" << severity << "):" << data->pMessage << " (" << data->pMessageIdName << ')' << std::endl;
 	}
-	
-	std::cerr << '\t' << data->pMessageIdName << " - " << data->pMessage << std::endl;
 }

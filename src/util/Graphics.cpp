@@ -1,7 +1,6 @@
 #include "Graphics.h"
 
 #include "general.h"
-#include "QueueFamilyIndices.h"
 
 const std::array<Vertex, 4> g_vertecies
 {
