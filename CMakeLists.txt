@@ -14,8 +14,9 @@ find_package(Vulkan REQUIRED)
 
 include(cmake/glslc.cmake)
 
-add_executable(triangle 
+add_executable(vkexample 
     src/main.cpp 
+    src/app.cpp
     
     src/util/BoundedBuffer.cpp
     src/util/callbacks.cpp
@@ -24,8 +25,8 @@ add_executable(triangle
     src/util/query.cpp
     src/util/QueueFamilyIndices.cpp
 )
-target_link_libraries(triangle glfw Vulkan::Vulkan)
-target_include_directories(triangle PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
+target_link_libraries(vkexample glfw Vulkan::Vulkan)
+target_include_directories(vkexample PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
 
-add_shader(triangle src/simple.frag frag.spv)
-add_shader(triangle src/simple.vert vert.spv)
+add_shader(vkexample src/simple.frag frag.spv)
+add_shader(vkexample src/simple.vert vert.spv)
