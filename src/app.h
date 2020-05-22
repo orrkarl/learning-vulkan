@@ -106,6 +106,7 @@ private:
 	void createDescriptorPool();
 
 	void createDescriptorSets();
+    
 	void initVulkan();
 
 	void updateUniformBuffer(const BoundedBuffer& deviceUniform);

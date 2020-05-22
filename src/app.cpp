@@ -169,8 +169,12 @@ void HelloTriangleApp::setupDebugMessenger()
 {
     vk::DebugUtilsMessengerCreateInfoEXT createInfo(
         vk::DebugUtilsMessengerCreateFlagsEXT(),
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-        vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+        vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo 
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning 
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+        vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral 
+            | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation 
+            | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
         debugCallback, nullptr
     );
 

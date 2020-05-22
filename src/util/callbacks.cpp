@@ -16,14 +16,24 @@ void onGLFWError(const int error, const char* description)
 	std::cerr << description << '(' << error << ")\n";
 }
 
+std::string nameOfSeverityLevel(VkDebugUtilsMessageSeverityFlagsEXT severity) {
+	switch (severity) {
+		case VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:	
+			return "ERROR";
+		case VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:	
+			return "WARNING";
+		case VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:	
+			return "INFO";
+		case VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:	
+			return "VERBOSE";
+	}
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	VkDebugUtilsMessageTypeFlagsEXT flags,
 	const VkDebugUtilsMessengerCallbackDataEXT *data,
 	void *userData)
 {
-	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-	{
-		std::cerr << "ERROR: " << data->pMessage << std::endl;
-	}
+	std::cerr << nameOfSeverityLevel(severity) << ": " << data->pMessage << std::endl;
 }
