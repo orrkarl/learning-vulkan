@@ -19,6 +19,7 @@ add_executable(vkexample
     src/app.cpp
     
     src/util/BoundedBuffer.cpp
+    src/util/BoundImage.cpp
     src/util/callbacks.cpp
     src/util/general.cpp
     src/util/MVPTransform.cpp

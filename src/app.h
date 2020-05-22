@@ -107,6 +107,12 @@ private:
 
 	void createDescriptorSets();
 
+	vk::UniqueCommandBuffer beginSingleTimeCommand();
+
+    void applyGraphicsCmd(vk::CommandBuffer cmdBuffer);
+
+	void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+
     void createTextureImage();
 
 	void initVulkan();

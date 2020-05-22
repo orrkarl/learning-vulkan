@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <vulkan/vulkan.hpp>
 
 std::vector<char> readFile(const std::string &path);
 

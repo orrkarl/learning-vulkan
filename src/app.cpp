@@ -622,36 +622,9 @@ void HelloTriangleApp::recreateSwapchain()
 
 void HelloTriangleApp::copyBuffer(const vk::Buffer& src, const vk::Buffer& dest, const vk::DeviceSize& size)
 {
-    auto copyCommand = vk::UniqueCommandBuffer(
-        m_device->allocateCommandBuffers(
-            vk::CommandBufferAllocateInfo(
-                *m_commandPool,
-                vk::CommandBufferLevel::ePrimary,
-                1
-            )
-        )[0],
-        vk::PoolFree(
-            *m_device, 
-            *m_commandPool, 
-            vk::DispatchLoaderStatic()
-        )
-    );
-
-    copyCommand->begin(
-        vk::CommandBufferBeginInfo(
-            vk::CommandBufferUsageFlagBits::eOneTimeSubmit
-        )
-    );
+    auto copyCommand = beginSingleTimeCommand();
     copyCommand->copyBuffer(src, dest, { vk::BufferCopy(0, 0, size) });
-    copyCommand->end();
-
-    auto copyFence = m_device->createFenceUnique(vk::FenceCreateInfo());
-    vk::SubmitInfo submitInfo;
-    submitInfo.setCommandBufferCount(1);
-    submitInfo.setPCommandBuffers(&copyCommand.get());
-    m_graphicsQueue.submit(1, &submitInfo, *copyFence);
-
-    m_device->waitForFences(1, &copyFence.get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
+    applyGraphicsCmd(*copyCommand);    
 }
 
 void HelloTriangleApp::createVertexBuffers()
@@ -700,6 +673,49 @@ void HelloTriangleApp::createDescriptorSets()
     }
 }
 
+vk::UniqueCommandBuffer HelloTriangleApp::beginSingleTimeCommand() {
+    auto cmdBuffer = vk::UniqueCommandBuffer(
+        m_device->allocateCommandBuffers(
+            vk::CommandBufferAllocateInfo(
+                *m_commandPool,
+                vk::CommandBufferLevel::ePrimary,
+                1
+            )
+        )[0],
+        vk::PoolFree(
+            *m_device, 
+            *m_commandPool, 
+            vk::DispatchLoaderStatic()
+        )
+    );
+
+    cmdBuffer->begin(
+        vk::CommandBufferBeginInfo(
+            vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+        )
+    );
+
+    return std::move(cmdBuffer);
+}
+
+void HelloTriangleApp::applyGraphicsCmd(vk::CommandBuffer cmdBuffer) {
+    cmdBuffer.end();
+
+    auto cmdFence = m_device->createFenceUnique(vk::FenceCreateInfo());
+    vk::SubmitInfo submitInfo;
+    submitInfo.setCommandBufferCount(1);
+    submitInfo.setPCommandBuffers(&cmdBuffer);
+    m_graphicsQueue.submit(1, &submitInfo, *cmdFence);
+
+    m_device->waitForFences(1, &cmdFence.get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
+}
+
+void HelloTriangleApp::transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+    auto cmdBuffer = beginSingleTimeCommand();
+    //cmdBuffer->copyBuffer(src, dest, { vk::BufferCopy(0, 0, size) });
+
+}
+
 void HelloTriangleApp::createTextureImage() {
     int texWidth, texHeight, texChannelCount;
     auto pixels = stbi_load("../resources/textures/statue.jpg", &texWidth, &texHeight, &texChannelCount, STBI_rgb_alpha);
@@ -727,7 +743,7 @@ void HelloTriangleApp::createTextureImage() {
         vk::ImageTiling::eOptimal, 
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
         vk::MemoryPropertyFlagBits::eDeviceLocal,
-        m_physicalDevice.getMemoryProperties());    
+        m_physicalDevice.getMemoryProperties());        
 }
 
 void HelloTriangleApp::initVulkan()
