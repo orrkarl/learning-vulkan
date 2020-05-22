@@ -113,6 +113,8 @@ private:
 
 	void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
 
+	void copyBufferToImage(vk::Buffer srcBuffer, vk::Image dstImage, uint32_t imageWidth, uint32_t imageHeight);
+
     void createTextureImage();
 
 	void initVulkan();

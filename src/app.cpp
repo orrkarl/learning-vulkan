@@ -711,9 +711,53 @@ void HelloTriangleApp::applyGraphicsCmd(vk::CommandBuffer cmdBuffer) {
 }
 
 void HelloTriangleApp::transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
-    auto cmdBuffer = beginSingleTimeCommand();
-    //cmdBuffer->copyBuffer(src, dest, { vk::BufferCopy(0, 0, size) });
+    vk::AccessFlags barrierSrc, barrierDst;
+    vk::PipelineStageFlags pipelineSrc, pipelineDst;
 
+    if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+        barrierSrc = vk::AccessFlags();
+        barrierDst = vk::AccessFlagBits::eTransferWrite;
+
+        pipelineSrc = vk::PipelineStageFlagBits::eTopOfPipe;
+        pipelineDst = vk::PipelineStageFlagBits::eTransfer;
+    } else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrierSrc = vk::AccessFlagBits::eTransferWrite;
+        barrierDst = vk::AccessFlagBits::eShaderRead;
+
+        pipelineSrc = vk::PipelineStageFlagBits::eTransfer;
+        pipelineDst = vk::PipelineStageFlagBits::eFragmentShader;
+    } else {
+        throw std::runtime_error("[" + std::string(__func__) + "] invalid layouts: " + vk::to_string(oldLayout) + " -> " + vk::to_string(newLayout));
+    }
+    
+    auto transitionCmd = beginSingleTimeCommand();
+    vk::ImageMemoryBarrier transitionBarrier(
+        barrierSrc, barrierDst,
+        oldLayout, newLayout,
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        m_statueTexture.image(),
+        vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
+    );
+    transitionCmd->pipelineBarrier(pipelineSrc, pipelineDst, vk::DependencyFlags(), {}, {}, {transitionBarrier});
+    applyGraphicsCmd(*transitionCmd);
+}
+
+void HelloTriangleApp::copyBufferToImage(vk::Buffer srcBuffer, vk::Image dstImage, uint32_t imageWidth, uint32_t imageHeight) {
+    auto copyCmd = beginSingleTimeCommand();
+    
+    vk::BufferImageCopy imageCopyInfo(
+        0, 0, 0, 
+        vk::ImageSubresourceLayers(
+            vk::ImageAspectFlagBits::eColor, 
+            0, 
+            0, 
+        1), 
+        {0, 0, 0}, 
+        {imageWidth, imageHeight, 1}
+    );
+    copyCmd->copyBufferToImage(srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, {imageCopyInfo});
+
+    applyGraphicsCmd(*copyCmd);    
 }
 
 void HelloTriangleApp::createTextureImage() {
@@ -724,7 +768,10 @@ void HelloTriangleApp::createTextureImage() {
         throw std::runtime_error("could not load texture!");
     }
 
-    VkDeviceSize desiredTextureSize = texWidth * texHeight * 4;
+    auto w = static_cast<uint32_t>(texWidth);
+    auto h = static_cast<uint32_t>(texHeight);
+
+    VkDeviceSize desiredTextureSize = w * h * 4;
     BoundedBuffer staging(
         m_physicalDevice, 
         *m_device, 
@@ -738,12 +785,16 @@ void HelloTriangleApp::createTextureImage() {
 
     m_statueTexture = BoundImage(
         *m_device, 
-        static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 
+        w, h, 
         vk::Format::eR8G8B8A8Srgb, 
         vk::ImageTiling::eOptimal, 
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
         vk::MemoryPropertyFlagBits::eDeviceLocal,
         m_physicalDevice.getMemoryProperties());        
+
+    transitionImageLayout(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+    copyBufferToImage(staging.buffer(), m_statueTexture.image(), w, h);    
+    transitionImageLayout(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
 void HelloTriangleApp::initVulkan()
