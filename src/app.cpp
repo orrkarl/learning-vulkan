@@ -20,6 +20,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 
@@ -171,8 +172,7 @@ void HelloTriangleApp::setupDebugMessenger()
 {
     vk::DebugUtilsMessengerCreateInfoEXT createInfo(
         vk::DebugUtilsMessengerCreateFlagsEXT(),
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo 
-            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning 
+        vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning 
             | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
         vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral 
             | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation 
@@ -700,6 +700,36 @@ void HelloTriangleApp::createDescriptorSets()
     }
 }
 
+void HelloTriangleApp::createTextureImage() {
+    int texWidth, texHeight, texChannelCount;
+    auto pixels = stbi_load("../resources/textures/statue.jpg", &texWidth, &texHeight, &texChannelCount, STBI_rgb_alpha);
+
+    if (!pixels) {
+        throw std::runtime_error("could not load texture!");
+    }
+
+    VkDeviceSize desiredTextureSize = texWidth * texHeight * 4;
+    BoundedBuffer staging(
+        m_physicalDevice, 
+        *m_device, 
+        desiredTextureSize, 
+        pixels,
+        vk::BufferUsageFlagBits::eTransferSrc, 
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+
+    stbi_image_free(pixels);
+
+    m_statueTexture = BoundImage(
+        *m_device, 
+        static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 
+        vk::Format::eR8G8B8A8Srgb, 
+        vk::ImageTiling::eOptimal, 
+        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        m_physicalDevice.getMemoryProperties());    
+}
+
 void HelloTriangleApp::initVulkan()
 {
     createInstance();
@@ -717,6 +747,7 @@ void HelloTriangleApp::initVulkan()
     createGraphicsPipeline();
     createFramebuffers();
     createCommandPool();
+    createTextureImage();
     createVertexBuffers();
     createUniformBuffers();
     createDescriptorPool();

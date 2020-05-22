@@ -106,7 +106,9 @@ private:
 	void createDescriptorPool();
 
 	void createDescriptorSets();
-    
+
+    void createTextureImage();
+
 	void initVulkan();
 
 	void updateUniformBuffer(const BoundedBuffer& deviceUniform);
@@ -130,6 +132,7 @@ private:
 	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
 	BoundedBuffer							m_deviceVertecies;
 	BoundedBuffer							m_deviceIndices;
+    BoundImage		                        m_statueTexture;
 	std::vector<BoundedBuffer>				m_uniforms;
 	vk::UniqueRenderPass 					m_renderPass;
 	vk::UniquePipelineLayout 				m_pipelineLayout;

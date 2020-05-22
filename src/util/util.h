@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BoundedBuffer.h"
+#include "BoundImage.h"
 #include "callbacks.h"
 #include "general.h"
 #include "MVPTransform.h"
