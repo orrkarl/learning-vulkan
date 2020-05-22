@@ -309,13 +309,13 @@ void HelloTriangleApp::createSwapChain()
     m_swapChainImages = m_device->getSwapchainImagesKHR(m_swapChain.get());
 }
 
-void HelloTriangleApp::createImageViews()
+vk::UniqueImageView HelloTriangleApp::createImageView(vk::Image image, vk::Format format)
 {
     vk::ImageViewCreateInfo createInfo(
         vk::ImageViewCreateFlags(),
-        vk::Image(),
+        image,
         vk::ImageViewType::e2D,
-        m_swapChainImageFormat,
+        format,
         vk::ComponentMapping(),
         vk::ImageSubresourceRange(
             vk::ImageAspectFlagBits::eColor,
@@ -326,11 +326,16 @@ void HelloTriangleApp::createImageViews()
         )
     );
 
+    return m_device->createImageViewUnique(createInfo);
+}
+
+void HelloTriangleApp::createImageViews()
+{
     m_swapChainImageViews.resize(m_swapChainImages.size());
+ 
     for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
     {
-        createInfo.image = m_swapChainImages[i];
-        m_swapChainImageViews[i] = m_device->createImageViewUnique(createInfo);
+        m_swapChainImageViews[i] = createImageView(m_swapChainImages[i], m_swapChainImageFormat);
     }
 }
 
@@ -797,6 +802,10 @@ void HelloTriangleApp::createTextureImage() {
     transitionImageLayout(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
+void HelloTriangleApp::createTextureView() {
+    m_statueTextureView = createImageView(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb); 
+}
+
 void HelloTriangleApp::initVulkan()
 {
     createInstance();
@@ -815,6 +824,7 @@ void HelloTriangleApp::initVulkan()
     createFramebuffers();
     createCommandPool();
     createTextureImage();
+    createTextureView();
     createVertexBuffers();
     createUniformBuffers();
     createDescriptorPool();

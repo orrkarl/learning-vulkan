@@ -74,6 +74,8 @@ private:
 
 	void createSwapChain();
 
+	vk::UniqueImageView createImageView(vk::Image image, vk::Format format);
+
 	void createImageViews();
 
 	vk::UniqueShaderModule createShaderModule(const std::vector<char> &code);
@@ -117,6 +119,8 @@ private:
 
     void createTextureImage();
 
+	void createTextureView();
+
 	void initVulkan();
 
 	void updateUniformBuffer(const BoundedBuffer& deviceUniform);
@@ -141,6 +145,7 @@ private:
 	BoundedBuffer							m_deviceVertecies;
 	BoundedBuffer							m_deviceIndices;
     BoundImage		                        m_statueTexture;
+	vk::UniqueImageView						m_statueTextureView;
 	std::vector<BoundedBuffer>				m_uniforms;
 	vk::UniqueRenderPass 					m_renderPass;
 	vk::UniquePipelineLayout 				m_pipelineLayout;
