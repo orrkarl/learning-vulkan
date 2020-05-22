@@ -121,6 +121,8 @@ private:
 
 	void createTextureView();
 
+	void createTextureSampler();
+
 	void initVulkan();
 
 	void updateUniformBuffer(const BoundedBuffer& deviceUniform);
@@ -146,6 +148,7 @@ private:
 	BoundedBuffer							m_deviceIndices;
     BoundImage		                        m_statueTexture;
 	vk::UniqueImageView						m_statueTextureView;
+	vk::UniqueSampler						m_statueTextureSampler;
 	std::vector<BoundedBuffer>				m_uniforms;
 	vk::UniqueRenderPass 					m_renderPass;
 	vk::UniquePipelineLayout 				m_pipelineLayout;

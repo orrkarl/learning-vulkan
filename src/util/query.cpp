@@ -115,10 +115,18 @@ bool checkDeviceExtensionsSupported(const vk::PhysicalDevice& dev, const std::ve
 	return true;
 }
 
+bool checkFeaturesSupported(vk::PhysicalDeviceFeatures features) {
+	auto anisotropySupported = features.samplerAnisotropy == VK_TRUE;
+	
+	return anisotropySupported;
+}
+
 bool isDeviceSuitable(const vk::PhysicalDevice& dev, const vk::SurfaceKHR& renderSurface, const std::vector<const char*>& extensions)
 {
 	auto queuesFound = QueueFamilyIndices(dev, renderSurface).hasAllQueues();
 	auto extensionsSupported = checkDeviceExtensionsSupported(dev, extensions);
 	auto swapChainAdequate = SwapChainSupportDetails(dev, renderSurface).isAdequate();
-	return queuesFound && extensionsSupported && swapChainAdequate;
+	auto featuresSupported = checkFeaturesSupported(dev.getFeatures());
+	
+	return queuesFound && extensionsSupported && swapChainAdequate && featuresSupported;
 }

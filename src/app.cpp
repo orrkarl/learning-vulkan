@@ -245,6 +245,7 @@ void HelloTriangleApp::createLogicalDevice()
     }
 
     vk::PhysicalDeviceFeatures deviceFeatures;
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     vk::DeviceCreateInfo createInfo(
         vk::DeviceCreateFlags(),
@@ -806,6 +807,23 @@ void HelloTriangleApp::createTextureView() {
     m_statueTextureView = createImageView(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb); 
 }
 
+void HelloTriangleApp::createTextureSampler() {
+    vk::SamplerCreateInfo sampleInfo(
+        vk::SamplerCreateFlags(),
+        vk::Filter::eLinear, vk::Filter::eLinear, 
+        vk::SamplerMipmapMode::eLinear, 
+        vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, 
+        0.0f, 
+        VK_TRUE, 16.0f, 
+        VK_FALSE, vk::CompareOp::eAlways, 
+        0.0f, 0.0f, 
+        vk::BorderColor::eIntOpaqueBlack, 
+        VK_FALSE
+    );
+
+    m_statueTextureSampler = m_device->createSamplerUnique(sampleInfo);
+}
+
 void HelloTriangleApp::initVulkan()
 {
     createInstance();
@@ -825,6 +843,7 @@ void HelloTriangleApp::initVulkan()
     createCommandPool();
     createTextureImage();
     createTextureView();
+    createTextureSampler();
     createVertexBuffers();
     createUniformBuffers();
     createDescriptorPool();
