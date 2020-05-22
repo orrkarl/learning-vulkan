@@ -26,7 +26,10 @@ add_executable(vkexample
     src/util/QueueFamilyIndices.cpp
 )
 target_link_libraries(vkexample glfw Vulkan::Vulkan)
-target_include_directories(vkexample PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
+target_include_directories(vkexample 
+    PRIVATE ${GLFW_INCLUDE_DIRS} 
+    PRIVATE Vulkan::Vulkan
+    PRIVATE dependencies/stb)
 
 add_shader(vkexample src/simple.frag frag.spv)
 add_shader(vkexample src/simple.vert vert.spv)

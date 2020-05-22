@@ -20,6 +20,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <stb_image.h>
+
 
 VkError::VkError(const char *msg, const VkResult errcode)
     : std::runtime_error(msg), status(errcode)
