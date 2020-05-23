@@ -18,6 +18,8 @@ add_executable(vkexample
     src/main.cpp 
     src/app.cpp
     
+    src/dependencies/stb_image.cpp
+    src/dependencies/tiny_obj_loader.cpp
     src/util/BoundedBuffer.cpp
     src/util/BoundImage.cpp
     src/util/callbacks.cpp
@@ -26,11 +28,14 @@ add_executable(vkexample
     src/util/query.cpp
     src/util/QueueFamilyIndices.cpp
 )
+
 target_link_libraries(vkexample glfw Vulkan::Vulkan)
 target_include_directories(vkexample 
     PRIVATE ${GLFW_INCLUDE_DIRS} 
     PRIVATE Vulkan::Vulkan
-    PRIVATE dependencies/stb)
+    PRIVATE dependencies/stb
+    PRIVATE dependencies/tinyobjloader
+)
 
 add_shader(shaders-fragment src/simple.frag frag.spv)
 add_shader(shaders-vertex src/simple.vert vert.spv)
