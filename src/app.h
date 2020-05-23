@@ -49,6 +49,17 @@ struct Vertex
 	static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescription();
 };
 
+bool operator==(const Vertex& lhs, const Vertex& rhs);
+
+namespace std {
+
+template <>
+struct hash<Vertex> {
+	size_t operator()(const Vertex& v) const;
+};
+
+}
+
 class HelloTriangleApp
 {
 public:
@@ -103,6 +114,8 @@ private:
 	template <class Container>
 	BoundedBuffer createStagedBuffer(const Container& hostData, const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& properties);
 
+	void loadModel();
+
 	void createVertexBuffers();
 
 	void createUniformBuffers();
@@ -152,14 +165,16 @@ private:
 	std::vector<vk::UniqueSemaphore> 		m_imageAvailable;
 	std::vector<vk::UniqueFence> 			m_inFlightImages;
 	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
+	std::vector<Vertex>						m_vikingRoomVertecies;
 	BoundedBuffer							m_deviceVertecies;
+	std::vector<uint32_t>					m_vikingRoomIndices;		
 	BoundedBuffer							m_deviceIndices;
 	BoundImage								m_depthImage;
 	vk::UniqueImageView						m_depthView;
-	uint32_t								m_statueMipLevels;
-    BoundImage		                        m_statueTexture;
-	vk::UniqueImageView						m_statueTextureView;
-	vk::UniqueSampler						m_statueTextureSampler;
+	uint32_t								m_vikingRoomMipLevels;
+    BoundImage		                        m_vikingRoomTexture;
+	vk::UniqueImageView						m_vikingRoomTextureView;
+	vk::UniqueSampler						m_vikingRoomTextureSampler;
 	std::vector<BoundedBuffer>				m_uniforms;
 	vk::UniqueRenderPass 					m_renderPass;
 	vk::UniquePipelineLayout 				m_pipelineLayout;

@@ -8,6 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <unordered_map>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -18,11 +19,13 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <stb_image.h>
-
+#include <tiny_obj_loader.h>
 
 VkError::VkError(const char *msg, const VkResult errcode)
     : std::runtime_error(msg), status(errcode)
@@ -54,6 +57,10 @@ const char* VkExtensionNotFoundError::extensions() const
     return m_extensionName;
 }
 
+bool operator==(const Vertex& lhs, const Vertex& rhs) {
+    return lhs.pos == rhs.pos && lhs.texCoord == rhs.texCoord && lhs.color == rhs.color;
+}
+
 vk::VertexInputBindingDescription Vertex::getBindingDescription()
 {
     return vk::VertexInputBindingDescription(0, sizeof(Vertex));
@@ -68,25 +75,14 @@ std::array<vk::VertexInputAttributeDescription, 3> Vertex::getAttributeDescripti
     };
 }
 
-
-const std::array<Vertex, 8> g_vertecies
-{
-    Vertex{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	Vertex{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    Vertex{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    Vertex{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-    Vertex{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	Vertex{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    Vertex{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    Vertex{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-};
-
-const std::array<uint16_t, 12> g_indices
-{
-	0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
+size_t std::hash<Vertex>::operator()(const Vertex& v) const {
+    auto posHash = std::hash<glm::vec3>{}(v.pos);
+    auto texCoordHash = std::hash<glm::vec2>{}(v.texCoord);
+    auto colorHash = std::hash<glm::vec3>{}(v.color);
+    
+    auto texColHash = texCoordHash ^ (colorHash << 1);
+    return posHash ^ (texColHash << 1);
+}
 
 void HelloTriangleApp::run()
 {
@@ -107,7 +103,7 @@ HelloTriangleApp::~HelloTriangleApp()
     glfwTerminate();
 }
 
-    void HelloTriangleApp::glfwFramebufferResize(GLFWwindow* window, int w, int h)
+void HelloTriangleApp::glfwFramebufferResize(GLFWwindow* window, int w, int h)
 {
     auto app = reinterpret_cast<HelloTriangleApp*>(glfwGetWindowUserPointer(window));
     app->m_windowSizeChanged = true;
@@ -612,9 +608,9 @@ void HelloTriangleApp::createCommandBuffers()
             m_commandBuffers[i]->beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
             m_commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.get());
             m_commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
-            m_commandBuffers[i]->bindIndexBuffer(m_deviceIndices.buffer(), 0, vk::IndexType::eUint16);
+            m_commandBuffers[i]->bindIndexBuffer(m_deviceIndices.buffer(), 0, vk::IndexType::eUint32);
             m_commandBuffers[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_pipelineLayout, 0, {m_descriptorSets[i]}, {});
-            m_commandBuffers[i]->drawIndexed(static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
+            m_commandBuffers[i]->drawIndexed(static_cast<uint32_t>(m_vikingRoomIndices.size()), 1, 0, 0, 0);
             m_commandBuffers[i]->endRenderPass();
         m_commandBuffers[i]->end();
     }
@@ -680,10 +676,45 @@ void HelloTriangleApp::copyBuffer(const vk::Buffer& src, const vk::Buffer& dest,
     applyGraphicsCmd(*copyCommand);    
 }
 
+void HelloTriangleApp::loadModel() {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string loadWarn, loadErr;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &loadWarn, &loadErr, config::VIKING_MODEL_PATH)) {
+        throw std::runtime_error(loadWarn + loadErr);
+    }
+
+    std::unordered_map<Vertex, uint32_t> vertexToIndex;
+    for (const auto& shape : shapes) {
+        for (const auto& index : shape.mesh.indices) {
+            Vertex vertex;
+            vertex.pos = {
+                attrib.vertices[3 * index.vertex_index + 0],
+                attrib.vertices[3 * index.vertex_index + 1],
+                attrib.vertices[3 * index.vertex_index + 2]
+            };
+            vertex.texCoord = {
+                attrib.texcoords[2 * index.texcoord_index + 0],
+                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+            };
+            vertex.color = {1.0f, 1.0f, 1.0f};
+
+            if (vertexToIndex.count(vertex) == 0) {
+                vertexToIndex.insert(std::make_pair(vertex, m_vikingRoomVertecies.size()));
+                m_vikingRoomVertecies.push_back(vertex);
+            }
+
+            m_vikingRoomIndices.push_back(vertexToIndex[vertex]);
+        }
+    }
+}
+
 void HelloTriangleApp::createVertexBuffers()
 {
-    m_deviceVertecies = createStagedBuffer(g_vertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    m_deviceIndices = createStagedBuffer(g_indices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    m_deviceVertecies = createStagedBuffer(m_vikingRoomVertecies, vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    m_deviceIndices = createStagedBuffer(m_vikingRoomIndices, vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal);
 }
 
 void HelloTriangleApp::createUniformBuffers()
@@ -721,7 +752,7 @@ void HelloTriangleApp::createDescriptorSets()
     for (auto i = 0u; i < m_swapChainImages.size(); ++i)
     {
         vk::DescriptorBufferInfo uniformInfo(m_uniforms[i].buffer(), 0, sizeof(MVPTransform));
-        vk::DescriptorImageInfo samplerInfo(*m_statueTextureSampler, *m_statueTextureView, vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::DescriptorImageInfo samplerInfo(*m_vikingRoomTextureSampler, *m_vikingRoomTextureView, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         vk::WriteDescriptorSet uniformWrite(m_descriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformInfo);
         vk::WriteDescriptorSet samplerWrite(m_descriptorSets[i], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &samplerInfo);
@@ -792,7 +823,7 @@ void HelloTriangleApp::transitionImageLayout(vk::Image image, vk::Format format,
         barrierSrc, barrierDst,
         oldLayout, newLayout,
         VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-        m_statueTexture.image(),
+        m_vikingRoomTexture.image(),
         vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1)
     );
     transitionCmd->pipelineBarrier(pipelineSrc, pipelineDst, vk::DependencyFlags(), {}, {}, {transitionBarrier});
@@ -914,7 +945,7 @@ void HelloTriangleApp::createDepthResources() {
 
 void HelloTriangleApp::createTextureImage() {
     int texWidth, texHeight, texChannelCount;
-    auto pixels = stbi_load("../resources/textures/statue.jpg", &texWidth, &texHeight, &texChannelCount, STBI_rgb_alpha);
+    auto pixels = stbi_load(config::VIKING_TEXTURE_PATH, &texWidth, &texHeight, &texChannelCount, STBI_rgb_alpha);
 
     if (!pixels) {
         throw std::runtime_error("could not load texture!");
@@ -922,7 +953,7 @@ void HelloTriangleApp::createTextureImage() {
 
     auto w = static_cast<uint32_t>(texWidth);
     auto h = static_cast<uint32_t>(texHeight);
-    m_statueMipLevels = 1 + static_cast<uint32_t>(std::floor(std::log2(std::max(w, h))));
+    m_vikingRoomMipLevels = 1 + static_cast<uint32_t>(std::floor(std::log2(std::max(w, h))));
 
     VkDeviceSize desiredTextureSize = w * h * 4;
     BoundedBuffer staging(
@@ -936,9 +967,9 @@ void HelloTriangleApp::createTextureImage() {
 
     stbi_image_free(pixels);
 
-    m_statueTexture = BoundImage(
+    m_vikingRoomTexture = BoundImage(
         *m_device, 
-        w, h, m_statueMipLevels,
+        w, h, m_vikingRoomMipLevels,
         vk::Format::eR8G8B8A8Srgb, 
         vk::ImageTiling::eOptimal, 
         vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
@@ -946,18 +977,18 @@ void HelloTriangleApp::createTextureImage() {
         m_physicalDevice.getMemoryProperties());        
 
     transitionImageLayout(
-        m_statueTexture.image(), 
+        m_vikingRoomTexture.image(), 
         vk::Format::eR8G8B8A8Srgb, 
         vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 
-        m_statueMipLevels
+        m_vikingRoomMipLevels
     );
-    copyBufferToImage(staging.buffer(), m_statueTexture.image(), w, h);    
+    copyBufferToImage(staging.buffer(), m_vikingRoomTexture.image(), w, h);    
 
-    generateMipmaps(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, w, h, m_statueMipLevels);
+    generateMipmaps(m_vikingRoomTexture.image(), vk::Format::eR8G8B8A8Srgb, w, h, m_vikingRoomMipLevels);
 }
 
 void HelloTriangleApp::createTextureView() {
-    m_statueTextureView = createImageView(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor, m_statueMipLevels); 
+    m_vikingRoomTextureView = createImageView(m_vikingRoomTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor, m_vikingRoomMipLevels); 
 }
 
 void HelloTriangleApp::createTextureSampler() {
@@ -969,12 +1000,12 @@ void HelloTriangleApp::createTextureSampler() {
         0.0f, 
         VK_TRUE, 16.0f, 
         VK_FALSE, vk::CompareOp::eAlways, 
-        0.0f, static_cast<float>(m_statueMipLevels), 
+        0.0f, static_cast<float>(m_vikingRoomMipLevels), 
         vk::BorderColor::eIntOpaqueBlack,
         VK_FALSE
     );
 
-    m_statueTextureSampler = m_device->createSamplerUnique(sampleInfo);
+    m_vikingRoomTextureSampler = m_device->createSamplerUnique(sampleInfo);
 }
 
 void HelloTriangleApp::initVulkan()
@@ -995,6 +1026,7 @@ void HelloTriangleApp::initVulkan()
     createCommandPool();
     createDepthResources();
     createFramebuffers();
+    loadModel();
     createTextureImage();
     createTextureView();
     createTextureSampler();
@@ -1009,7 +1041,7 @@ void HelloTriangleApp::initVulkan()
 void HelloTriangleApp::updateUniformBuffer(const BoundedBuffer& deviceUniform)
 {
     auto model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    auto view = glm::lookAt(glm::vec3(1.0f, -1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    auto view = glm::lookAt(glm::vec3(1.5f, -2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     auto proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
     proj[1][1] *= -1;
 
