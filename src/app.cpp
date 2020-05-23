@@ -8,6 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <unordered_map>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -18,8 +19,10 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <stb_image.h>
 #include <tiny_obj_loader.h>
@@ -54,6 +57,10 @@ const char* VkExtensionNotFoundError::extensions() const
     return m_extensionName;
 }
 
+bool operator==(const Vertex& lhs, const Vertex& rhs) {
+    return lhs.pos == rhs.pos && lhs.texCoord == rhs.texCoord && lhs.color == rhs.color;
+}
+
 vk::VertexInputBindingDescription Vertex::getBindingDescription()
 {
     return vk::VertexInputBindingDescription(0, sizeof(Vertex));
@@ -66,6 +73,15 @@ std::array<vk::VertexInputAttributeDescription, 3> Vertex::getAttributeDescripti
         vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
         vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
     };
+}
+
+size_t std::hash<Vertex>::operator()(const Vertex& v) const {
+    auto posHash = std::hash<glm::vec3>{}(v.pos);
+    auto texCoordHash = std::hash<glm::vec2>{}(v.texCoord);
+    auto colorHash = std::hash<glm::vec3>{}(v.color);
+    
+    auto texColHash = texCoordHash ^ (colorHash << 1);
+    return posHash ^ (texColHash << 1);
 }
 
 void HelloTriangleApp::run()
@@ -666,6 +682,7 @@ void HelloTriangleApp::loadModel() {
         throw std::runtime_error(loadWarn + loadErr);
     }
 
+    std::unordered_map<Vertex, uint32_t> vertexToIndex;
     for (const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
             Vertex vertex;
@@ -680,8 +697,12 @@ void HelloTriangleApp::loadModel() {
             };
             vertex.color = {1.0f, 1.0f, 1.0f};
 
-            m_vikingRoomVertecies.push_back(vertex);
-            m_vikingRoomIndices.push_back(m_vikingRoomIndices.size());
+            if (vertexToIndex.count(vertex) == 0) {
+                vertexToIndex.insert(std::make_pair(vertex, m_vikingRoomVertecies.size()));
+                m_vikingRoomVertecies.push_back(vertex);
+            }
+
+            m_vikingRoomIndices.push_back(vertexToIndex[vertex]);
         }
     }
 }

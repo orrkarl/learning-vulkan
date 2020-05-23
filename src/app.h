@@ -49,6 +49,17 @@ struct Vertex
 	static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescription();
 };
 
+bool operator==(const Vertex& lhs, const Vertex& rhs);
+
+namespace std {
+
+template <>
+struct hash<Vertex> {
+	size_t operator()(const Vertex& v) const;
+};
+
+}
+
 class HelloTriangleApp
 {
 public:
