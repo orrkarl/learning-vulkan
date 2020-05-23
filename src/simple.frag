@@ -10,5 +10,8 @@ layout (location = 0) out vec4 oOutColor;
 
 void main() 
 {
-    oOutColor = texture(uTexSampler, iFragTexCoord);
+    vec4 texColor = texture(uTexSampler, iFragTexCoord);
+    vec3 multipliedColor = vec3(iFragColor * texColor.rgb);
+    vec3 whitened = mix(multipliedColor, vec3(1.0), 0.1);
+    oOutColor = vec4(whitened, texColor.a);
 }
