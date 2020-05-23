@@ -42,10 +42,11 @@ struct Vertex
 {
 	glm::vec2 pos;
 	glm::vec3 color;
+	glm::vec2 texCoord;
 
 	static vk::VertexInputBindingDescription getBindingDescription();
 
-	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescription();
+	static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescription();
 };
 
 class HelloTriangleApp

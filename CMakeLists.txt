@@ -32,5 +32,5 @@ target_include_directories(vkexample
     PRIVATE Vulkan::Vulkan
     PRIVATE dependencies/stb)
 
-add_shader(vkexample src/simple.frag frag.spv)
-add_shader(vkexample src/simple.vert vert.spv)
+add_shader(shaders-fragment src/simple.frag frag.spv)
+add_shader(shaders-vertex src/simple.vert vert.spv)

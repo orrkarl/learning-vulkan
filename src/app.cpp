@@ -59,21 +59,22 @@ vk::VertexInputBindingDescription Vertex::getBindingDescription()
     return vk::VertexInputBindingDescription(0, sizeof(Vertex));
 }
 
-std::array<vk::VertexInputAttributeDescription, 2> Vertex::getAttributeDescription()
+std::array<vk::VertexInputAttributeDescription, 3> Vertex::getAttributeDescription()
 {
     return {
         vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
-        vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
+        vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
+        vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
     };
 }
 
 
 const std::array<Vertex, 4> g_vertecies
 {
-    Vertex{ {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	Vertex{ { 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-    Vertex{ { 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
-    Vertex{ {-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+    Vertex{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	Vertex{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    Vertex{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    Vertex{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 };
 
 const std::array<uint16_t, 6> g_indices
@@ -396,10 +397,18 @@ void HelloTriangleApp::createDescriptorSetLayout()
         vk::ShaderStageFlagBits::eVertex
     );
 
+    vk::DescriptorSetLayoutBinding samplerLayoutBinding(
+        1,
+        vk::DescriptorType::eCombinedImageSampler,
+        1, 
+        vk::ShaderStageFlagBits::eFragment
+    );
+
+    std::array<vk::DescriptorSetLayoutBinding, 2> bindings{mvpLayoutBinding, samplerLayoutBinding};
     m_descriptorSetLayout = m_device->createDescriptorSetLayoutUnique(
         vk::DescriptorSetLayoutCreateInfo(
             vk::DescriptorSetLayoutCreateFlags(), 
-            1, &mvpLayoutBinding
+            bindings.size(), bindings.data()
         )
     );
 }
@@ -656,8 +665,11 @@ void HelloTriangleApp::createUniformBuffers()
 
 void HelloTriangleApp::createDescriptorPool()
 {
-    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, m_swapChainImages.size());
-    vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_swapChainImages.size(), 1, &poolSize);
+    vk::DescriptorPoolSize uniformsPool(vk::DescriptorType::eUniformBuffer, m_swapChainImages.size());
+    vk::DescriptorPoolSize samplersPool(vk::DescriptorType::eCombinedImageSampler, m_swapChainImages.size());
+    std::array<vk::DescriptorPoolSize, 2> poolSizes{uniformsPool, samplersPool};
+
+    vk::DescriptorPoolCreateInfo poolInfo(vk::DescriptorPoolCreateFlags(), m_swapChainImages.size(), poolSizes.size(), poolSizes.data());
 
     m_descriptorPool = m_device->createDescriptorPoolUnique(poolInfo);
 }
@@ -668,14 +680,15 @@ void HelloTriangleApp::createDescriptorSets()
     vk::DescriptorSetAllocateInfo allocInfo(*m_descriptorPool, layouts.size(), layouts.data());
     m_descriptorSets = m_device->allocateDescriptorSets(allocInfo);
 
-    vk::DescriptorBufferInfo bufferInfo(vk::Buffer(), 0, sizeof(MVPTransform));
-    vk::WriteDescriptorSet descriptorWrite(vk::DescriptorSet(), 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
     for (auto i = 0u; i < m_swapChainImages.size(); ++i)
     {
-        bufferInfo.setBuffer(m_uniforms[i].buffer());
-        descriptorWrite.setDstSet(m_descriptorSets[i]);
+        vk::DescriptorBufferInfo uniformInfo(m_uniforms[i].buffer(), 0, sizeof(MVPTransform));
+        vk::DescriptorImageInfo samplerInfo(*m_statueTextureSampler, *m_statueTextureView, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        m_device->updateDescriptorSets({descriptorWrite}, {});
+        vk::WriteDescriptorSet uniformWrite(m_descriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformInfo);
+        vk::WriteDescriptorSet samplerWrite(m_descriptorSets[i], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &samplerInfo);
+
+        m_device->updateDescriptorSets({uniformWrite, samplerWrite}, {});
     }
 }
 
