@@ -54,6 +54,7 @@ class HelloTriangleApp
 public:
 	void run();
 
+	HelloTriangleApp();
 	~HelloTriangleApp();
 
 private:
@@ -75,7 +76,7 @@ private:
 
 	void createSwapChain();
 
-	vk::UniqueImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectMask);
+	vk::UniqueImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectMask, uint32_t mipLevels);
 
 	void createImageViews();
 
@@ -114,9 +115,11 @@ private:
 
     void applyGraphicsCmd(vk::CommandBuffer cmdBuffer);
 
-	void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+	void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t mipLevels);
 
 	void copyBufferToImage(vk::Buffer srcBuffer, vk::Image dstImage, uint32_t imageWidth, uint32_t imageHeight);
+
+	void generateMipmaps(vk::Image image, vk::Format format, uint32_t width, uint32_t height, uint32_t mipLevels);
 
 	vk::Format findDepthFormat();
 
@@ -153,6 +156,7 @@ private:
 	BoundedBuffer							m_deviceIndices;
 	BoundImage								m_depthImage;
 	vk::UniqueImageView						m_depthView;
+	uint32_t								m_statueMipLevels;
     BoundImage		                        m_statueTexture;
 	vk::UniqueImageView						m_statueTextureView;
 	vk::UniqueSampler						m_statueTextureSampler;

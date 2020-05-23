@@ -4,7 +4,7 @@
 
 BoundImage::BoundImage(
     vk::Device dev, 
-    uint32_t width, uint32_t height, 
+    uint32_t width, uint32_t height, uint32_t mipLevels,
     vk::Format format, vk::ImageTiling tiling, 
     vk::ImageUsageFlags usage, 
     vk::MemoryPropertyFlags imageMemoryProperties, 
@@ -15,7 +15,7 @@ BoundImage::BoundImage(
             vk::ImageType::e2D, 
             format,
             vk::Extent3D(width, height, 1), 
-            1, 
+            mipLevels,
             1,
             vk::SampleCountFlagBits::e1, 
             tiling, 
