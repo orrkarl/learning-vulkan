@@ -873,7 +873,6 @@ void HelloTriangleApp::updateUniformBuffer(const BoundedBuffer& deviceUniform)
     proj[1][1] *= -1;
 
     auto transform = mkTransform(model, view, proj);
-    //auto transform = proj * view;
 
     void* data = m_device->mapMemory(deviceUniform.memory(), 0, sizeof(MVPTransform));
     memcpy(data, &transform, sizeof(transform));
