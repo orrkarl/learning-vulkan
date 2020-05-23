@@ -50,3 +50,28 @@ uint32_t findMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, co
 
 	throw std::runtime_error("could not find compatible memory");
 }
+
+vk::Format findSupportedFormat(vk::PhysicalDevice dev, const std::vector<vk::Format>& candidates, vk::ImageTiling requiredTiling, vk::FormatFeatureFlags requiredFormatFeatures) {
+	for (auto format : candidates) {
+		auto supportedFeatures = dev.getFormatProperties(format);
+
+		if (requiredTiling == vk::ImageTiling::eOptimal && ((supportedFeatures.optimalTilingFeatures & requiredFormatFeatures) == requiredFormatFeatures)) {
+			return format;
+		} else if (requiredTiling == vk::ImageTiling::eLinear && ((supportedFeatures.linearTilingFeatures & requiredFormatFeatures) == requiredFormatFeatures)) {
+			return format;
+		}
+	}	
+
+	throw std::runtime_error("could not find appropriate format");
+}
+
+bool hasStencilAttachment(vk::Format format) {
+	switch (format) {
+		case vk::Format::eD32SfloatS8Uint:
+			return true;
+		case vk::Format::eD24UnormS8Uint:
+			return true;
+		default:
+			return false;
+	}
+}

@@ -40,7 +40,7 @@ private:
 
 struct Vertex
 {
-	glm::vec2 pos;
+	glm::vec3 pos;
 	glm::vec3 color;
 	glm::vec2 texCoord;
 
@@ -75,7 +75,7 @@ private:
 
 	void createSwapChain();
 
-	vk::UniqueImageView createImageView(vk::Image image, vk::Format format);
+	vk::UniqueImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectMask);
 
 	void createImageViews();
 
@@ -118,6 +118,10 @@ private:
 
 	void copyBufferToImage(vk::Buffer srcBuffer, vk::Image dstImage, uint32_t imageWidth, uint32_t imageHeight);
 
+	vk::Format findDepthFormat();
+
+	void createDepthResources();
+
     void createTextureImage();
 
 	void createTextureView();
@@ -147,6 +151,8 @@ private:
 	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
 	BoundedBuffer							m_deviceVertecies;
 	BoundedBuffer							m_deviceIndices;
+	BoundImage								m_depthImage;
+	vk::UniqueImageView						m_depthView;
     BoundImage		                        m_statueTexture;
 	vk::UniqueImageView						m_statueTextureView;
 	vk::UniqueSampler						m_statueTextureSampler;

@@ -33,3 +33,10 @@ const vk::Image& BoundImage::image() const {
 const vk::DeviceMemory& BoundImage::memory() const {
     return *m_memory;
 }
+
+void BoundImage::reset()
+{
+    m_image.reset();
+    m_memory.reset();
+}
+

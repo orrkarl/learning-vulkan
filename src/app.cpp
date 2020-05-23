@@ -17,6 +17,7 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -62,24 +63,30 @@ vk::VertexInputBindingDescription Vertex::getBindingDescription()
 std::array<vk::VertexInputAttributeDescription, 3> Vertex::getAttributeDescription()
 {
     return {
-        vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+        vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
         vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
         vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
     };
 }
 
 
-const std::array<Vertex, 4> g_vertecies
+const std::array<Vertex, 8> g_vertecies
 {
-    Vertex{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	Vertex{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    Vertex{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    Vertex{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+    Vertex{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	Vertex{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    Vertex{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    Vertex{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+    Vertex{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	Vertex{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    Vertex{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    Vertex{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 };
 
-const std::array<uint16_t, 6> g_indices
+const std::array<uint16_t, 12> g_indices
 {
-	0, 1, 2, 2, 3, 0
+	0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
 };
 
 void HelloTriangleApp::run()
@@ -311,7 +318,7 @@ void HelloTriangleApp::createSwapChain()
     m_swapChainImages = m_device->getSwapchainImagesKHR(m_swapChain.get());
 }
 
-vk::UniqueImageView HelloTriangleApp::createImageView(vk::Image image, vk::Format format)
+vk::UniqueImageView HelloTriangleApp::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectMask)
 {
     vk::ImageViewCreateInfo createInfo(
         vk::ImageViewCreateFlags(),
@@ -320,7 +327,7 @@ vk::UniqueImageView HelloTriangleApp::createImageView(vk::Image image, vk::Forma
         format,
         vk::ComponentMapping(),
         vk::ImageSubresourceRange(
-            vk::ImageAspectFlagBits::eColor,
+            aspectMask,
             0,
             1,
             0,
@@ -337,7 +344,7 @@ void HelloTriangleApp::createImageViews()
  
     for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
     {
-        m_swapChainImageViews[i] = createImageView(m_swapChainImages[i], m_swapChainImageFormat);
+        m_swapChainImageViews[i] = createImageView(m_swapChainImages[i], m_swapChainImageFormat, vk::ImageAspectFlagBits::eColor);
     }
 }
 
@@ -365,12 +372,26 @@ void HelloTriangleApp::createRenderPass()
         vk::ImageLayout::eUndefined,
         vk::ImageLayout::ePresentSrcKHR
     );
+    vk::AttachmentDescription depth(
+        vk::AttachmentDescriptionFlags(),
+        findDepthFormat(),
+        vk::SampleCountFlagBits::e1,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eDepthStencilAttachmentOptimal
+    );
+    std::array<vk::AttachmentDescription, 2> attachmentsDesc{color, depth};
 
     vk::AttachmentReference colorRef(0, vk::ImageLayout::eColorAttachmentOptimal);
+    vk::AttachmentReference depthRef(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
     vk::SubpassDescription subpassDesc;
     subpassDesc.colorAttachmentCount = 1;
     subpassDesc.pColorAttachments = &colorRef;
+    subpassDesc.pDepthStencilAttachment = &depthRef;
 
     vk::SubpassDependency dependency(
         VK_SUBPASS_EXTERNAL, 0,
@@ -380,7 +401,7 @@ void HelloTriangleApp::createRenderPass()
 
     vk::RenderPassCreateInfo renderPassInfo(
         vk::RenderPassCreateFlags(),
-        1, &color,
+        attachmentsDesc.size(), attachmentsDesc.data(),
         1, &subpassDesc,
         1, &dependency
     );
@@ -491,6 +512,14 @@ void HelloTriangleApp::createGraphicsPipeline()
         vk::ColorComponentFlagBits::eA  
     );
 
+    vk::PipelineDepthStencilStateCreateInfo depthStencilInfo(
+        vk::PipelineDepthStencilStateCreateFlags(),
+        VK_TRUE, VK_TRUE,
+        vk::CompareOp::eLess,
+        VK_FALSE,
+        VK_FALSE
+    );
+
     vk::PipelineColorBlendStateCreateInfo colorBlending;
     colorBlending.setAttachmentCount(1);
     colorBlending.setPAttachments(&colorBlendAttachment);
@@ -510,7 +539,7 @@ void HelloTriangleApp::createGraphicsPipeline()
         &viewportState,
         &rasterizerState,
         &multisamplingState,
-        nullptr,
+        &depthStencilInfo,
         &colorBlending,
         nullptr,
         m_pipelineLayout.get(),
@@ -524,17 +553,17 @@ void HelloTriangleApp::createFramebuffers()
 {
     m_frameBuffers.resize(m_swapChainImages.size());
 
-    vk::FramebufferCreateInfo framebufferInfo(
-        vk::FramebufferCreateFlags(), 
-        m_renderPass.get(), 
-        1, nullptr, 
-        m_swapChainExtent.width, m_swapChainExtent.height, 
-        1
-    );
-
     for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
     {
-        framebufferInfo.pAttachments = &m_swapChainImageViews[i].get();
+        std::array<vk::ImageView, 2> attachmentViews{m_swapChainImageViews[i].get(), *m_depthView};
+        vk::FramebufferCreateInfo framebufferInfo(
+            vk::FramebufferCreateFlags(), 
+            m_renderPass.get(), 
+            attachmentViews.size(), attachmentViews.data(), 
+            m_swapChainExtent.width, m_swapChainExtent.height, 
+            1
+        );
+
         m_frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
     }
 }
@@ -561,13 +590,16 @@ void HelloTriangleApp::createCommandBuffers()
     vk::Buffer vertexBuffers[] = { m_deviceVertecies.buffer() };
     vk::DeviceSize vertexOffsets[] = { 0 };
 
+    vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
+    vk::ClearValue clearDepth(vk::ClearDepthStencilValue({1.0f, 0}));
+    std::array<vk::ClearValue, 2> clearValues{clearColor, clearDepth};
+
     vk::RenderPassBeginInfo renderPassBegin;
     renderPassBegin.renderPass = m_renderPass.get();
     renderPassBegin.renderArea.offset = vk::Offset2D(0, 0);
     renderPassBegin.renderArea.extent = m_swapChainExtent;
-    vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
-    renderPassBegin.clearValueCount = 1;
-    renderPassBegin.pClearValues = &clearColor;
+    renderPassBegin.clearValueCount = clearValues.size();
+    renderPassBegin.pClearValues = clearValues.data();
 
     for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
     {
@@ -621,6 +653,8 @@ void HelloTriangleApp::recreateSwapchain()
     m_frameBuffers.clear();
     m_pipeline.reset();
     m_renderPass.reset();
+    m_depthImage.reset();
+    m_depthView.reset();
     m_swapChainImageViews.clear();
     m_swapChain.reset();
 
@@ -628,6 +662,7 @@ void HelloTriangleApp::recreateSwapchain()
     createImageViews();
     createRenderPass();
     createGraphicsPipeline();
+    createDepthResources();
     createFramebuffers();
     createUniformBuffers();
     createDescriptorPool();
@@ -779,6 +814,31 @@ void HelloTriangleApp::copyBufferToImage(vk::Buffer srcBuffer, vk::Image dstImag
     applyGraphicsCmd(*copyCmd);    
 }
 
+vk::Format HelloTriangleApp::findDepthFormat() {
+    return findSupportedFormat(
+        m_physicalDevice, 
+        {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint}, 
+        vk::ImageTiling::eOptimal, 
+        vk::FormatFeatureFlagBits::eDepthStencilAttachment
+    );
+}
+
+void HelloTriangleApp::createDepthResources() {
+    auto depthFormat = findDepthFormat();
+
+    m_depthImage = BoundImage(
+        *m_device, 
+        m_swapChainExtent.width, m_swapChainExtent.height, 
+        depthFormat, 
+        vk::ImageTiling::eOptimal, 
+        vk::ImageUsageFlagBits::eDepthStencilAttachment, 
+        vk::MemoryPropertyFlagBits::eDeviceLocal, 
+        m_physicalDevice.getMemoryProperties()
+    );
+
+    m_depthView = createImageView(m_depthImage.image(), depthFormat, vk::ImageAspectFlagBits::eDepth);
+}
+
 void HelloTriangleApp::createTextureImage() {
     int texWidth, texHeight, texChannelCount;
     auto pixels = stbi_load("../resources/textures/statue.jpg", &texWidth, &texHeight, &texChannelCount, STBI_rgb_alpha);
@@ -817,7 +877,7 @@ void HelloTriangleApp::createTextureImage() {
 }
 
 void HelloTriangleApp::createTextureView() {
-    m_statueTextureView = createImageView(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb); 
+    m_statueTextureView = createImageView(m_statueTexture.image(), vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor); 
 }
 
 void HelloTriangleApp::createTextureSampler() {
@@ -852,8 +912,9 @@ void HelloTriangleApp::initVulkan()
     createRenderPass();
     createDescriptorSetLayout();
     createGraphicsPipeline();
-    createFramebuffers();
     createCommandPool();
+    createDepthResources();
+    createFramebuffers();
     createTextureImage();
     createTextureView();
     createTextureSampler();
@@ -867,8 +928,8 @@ void HelloTriangleApp::initVulkan()
 
 void HelloTriangleApp::updateUniformBuffer(const BoundedBuffer& deviceUniform)
 {
-    auto model = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    auto model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    auto view = glm::lookAt(glm::vec3(1.0f, -1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     auto proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
     proj[1][1] *= -1;
 
