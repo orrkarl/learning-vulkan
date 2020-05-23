@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 #include <vulkan/vulkan.hpp>
@@ -10,7 +11,11 @@ namespace config
 
 constexpr uint32_t WIDTH = 640;
 constexpr uint32_t HEIGHT = 480;
-constexpr const char* NAME = "triangle";
+
+constexpr std::string VIKING_MODEL_PATH = "../resources/models/viking_room.obj";
+constexpr std::string VIKING_TEXTURE_PATH = "../resources/textures/viking_room.png";
+
+constexpr const char* NAME = "viking-room";
 constexpr unsigned int MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char *> VALIDATION_LAYERS =
